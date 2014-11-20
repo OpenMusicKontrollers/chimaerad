@@ -7,18 +7,6 @@
 // include http_parser
 #include <http_parser.h>
 
-#define RESPONSE \
-	"HTTP/1.1 200 OK\r\n" \
-	"Content-Type: text/html\r\n" \
-	"\r\n" \
-	"<!DOCTYPE html>" \
-	"<html>" \
-	"<body>" \
-	"<h1>Chimaera<span style=\"color:#c00;\">D</span></h1>" \
-	"</body>" \
-	"</html>"
-
-static uv_buf_t resbuf;
 static uv_tcp_t server;
 static http_parser_settings settings;
 
@@ -27,6 +15,8 @@ typedef struct {
 	http_parser parser;
 	uv_write_t write_req;
 } client_t;
+
+static lua_State *L;
 
 static void
 on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
@@ -115,27 +105,73 @@ after_write(uv_write_t *req, int status)
 static int
 on_headers_complete(http_parser *parser)
 {
-//printf("on_headers_complete\n");
-	client_t *client = parser->data;
+	lua_getglobal(L, "on_headers_complete");
+	if(lua_isfunction(L, -1))
+	{
+		if(lua_pcall(L, 0, 1, 0))
+		{
+			fprintf(stderr, "err: %s\n", lua_tostring(L, -1));
+			return -1;
+		}
+		else
+		{
+			if(lua_isstring(L, -1))
+			{
+				uv_buf_t msg;
+				msg.base = (char *)lua_tolstring(L, -1, &msg.len);
+				client_t *client = parser->data;
+				uv_write(&client->write_req, (uv_stream_t *)&client->handle, &msg, 1, after_write);
+				lua_pop(L, 1);
+				return 0;
+			}
+			else
+			{
+				lua_pop(L, 1);
+				return -1;
+			}
+		}
+	}
+	else
+		lua_pop(L, 1); // "on_headers_complete"
 
-	uv_write(&client->write_req, (uv_stream_t *)&client->handle, &resbuf, 1, after_write);
-
-	return 0;
+	return -1;
 }
 
 static int
 on_url(http_parser *parser, const char *at, size_t len)
 {
-	printf("on_url: %.*s\n", (int)len, at);
+	lua_getglobal(L, "on_url");
+	if(lua_isfunction(L, -1))
+	{
+		lua_pushlstring(L, at, len);
+		if(lua_pcall(L, 1, 1, 0))
+		{
+			fprintf(stderr, "err: %s\n", lua_tostring(L, -1));
+			return -1;
+		}
+		else
+		{
+			int res = luaL_checkinteger(L, -1);
+			lua_pop(L, 1);
+			return res;
+		}
+	}
+	else
+		lua_pop(L, 1); // "on_url"
 
-	return 0;
+	return -1;
 }
 
 int
 chimaerad_http_init(uv_loop_t *loop, uint16_t port)
 {
-	resbuf.base = RESPONSE;
-	resbuf.len = sizeof(RESPONSE);
+	if(!L)
+	{
+		L = lua_open();
+		luaL_openlibs(L);
+		if(luaL_dofile(L, "chimaerad_http.lua"))
+			fprintf(stderr, "err: %s\n", lua_tostring(L, -1));
+	}
 
 	settings.on_headers_complete = on_headers_complete;
 	settings.on_url = on_url;
@@ -173,6 +209,9 @@ int
 chimaerad_http_deinit()
 {
 	uv_close((uv_handle_t *)&server, NULL);
+
+	if(L)
+		lua_close(L);
 	
 	return 0;
 }

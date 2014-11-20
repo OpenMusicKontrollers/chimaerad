@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta name="author" content="Hanspeter Portner" />
+		<meta charset="UTF-8" />
+		<link rel="stylesheet" type="text/css" href="/style.css" />
+		<script type="text/javascript" src="/jquery-1.11.1.min.js"></script>
+	</head>
+
+	<body>
+		<h1>Chimaera<span style="color:#c00;">D</span></h1>
+
+		<div id="content">
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		$(document).ready(function() {
+			//var query = { '/!' : [ { 'i' : 13 } ] };
+			var query = { '/engines/group/attributes/0' : [
+				{ 'i' : 0 },
+				{ 'i' : 0 },
+				{ 'f' : 0.0 },
+				{ 'f' : 1.0 },
+				{ 'i' : false }
+			] };
+			var url = '/osc/?'+JSON.stringify(query);
+
+			$('#content').load(url, function() {
+				//alert('loaded')
+			})
+		})
+	</script>
+
+</html>
