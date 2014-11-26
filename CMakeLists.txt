@@ -12,6 +12,9 @@ include_directories(${PROJECT_SOURCE_DIR}/tlsf-3.0)
 include_directories(${PROJECT_SOURCE_DIR}/http-parser)
 include_directories(${PROJECT_SOURCE_DIR}/libosc)
 include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
+include_directories(${PROJECT_SOURCE_DIR}/cJSON)
+
+set(LIBS -lm)
 
 # libuv
 pkg_search_module(UV REQUIRED libuv>=1.0.0)
@@ -21,7 +24,7 @@ set(LIBS ${LIBS} ${UV_LDFLAGS})
 # RtMidi
 option(USE_RTMIDI "use RtMidi" ON)
 if(USE_RTMIDI)
-	pkg_search_module(RTMIDI REQUIRED librtmidi>=2.1.0)
+	pkg_search_module(RTMIDI REQUIRED librtmidi>=2.1)
 	include_directories(${RTMIDI_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${RTMIDI_LDFLAGS})
 endif()
@@ -29,36 +32,75 @@ endif()
 # lua
 option(USE_LUAJIT "use LuaJIT" ON)
 if(USE_LUAJIT)
-	pkg_search_module(LUAJIT REQUIRED luajit)
+	pkg_search_module(LUAJIT REQUIRED luajit>=2.0)
 	include_directories(${LUAJIT_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${LUAJIT_LDFLAGS})
 else()
-	pkg_search_module(LUA REQUIRED lua)
+	pkg_search_module(LUA REQUIRED lua>=5.1)
 	include_directories(${LUA_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${LUA_LDFLAGS})
 endif()
 
 # eina
-pkg_search_module(EINA REQUIRED eina>=1.11.2)
+pkg_search_module(EINA REQUIRED eina>=1.8)
 include_directories(${EINA_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${EINA_LDFLAGS})
 
-# osc
-add_library(osc libosc/osc.c)
+# eet
+pkg_search_module(EET REQUIRED eet>=1.8)
+include_directories(${EET_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${EET_LDFLAGS})
+
+# dns_sd
+pkg_search_module(DNS_SD REQUIRED avahi-compat-libdns_sd)
+include_directories(${DNS_SD_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
 
 # osc_stream
 add_library(osc_stream
+	libosc/osc.c
 	libosc_stream/osc_stream.c
 	libosc_stream/osc_stream_pipe.c
 	libosc_stream/osc_stream_slip.c
 	libosc_stream/osc_stream_tcp.c
 	libosc_stream/osc_stream_udp.c)
 
+# cJSON
+add_library(cjson
+	cJSON/cJSON.c)
+
 # chimaerad
 add_executable(chimaerad
 	chimaerad.c
-	chimaerad_http.c
+	chimaerad_host.c
+	chimaerad_dummy.c
 	http-parser/http_parser.c
 	tlsf-3.0/tlsf.c)
-target_link_libraries(chimaerad osc osc_stream ${LIBS})
+target_link_libraries(chimaerad osc_stream cjson ${LIBS})
 install(TARGETS chimaerad DESTINATION bin)
+
+# container
+find_program(EET_BIN NAMES eet)
+if(EET_BIN_NOTFOUND)
+  message(SEND_ERROR "eet not found")
+else()
+  message(STATUS "eet found: " ${EET_BIN})
+endif()
+
+add_custom_command(
+	OUTPUT ${PROJECT_BINARY_DIR}/chimaerad.eet
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /											${PROJECT_SOURCE_DIR}/index.html						0
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /content.html					${PROJECT_SOURCE_DIR}/content.html					0
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /jquery-1.11.1.min.js	${PROJECT_SOURCE_DIR}/jquery-1.11.1.min.js	0
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /style.css							${PROJECT_SOURCE_DIR}/style.css							0
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /favicon.png						${PROJECT_SOURCE_DIR}/favicon.png						0
+	COMMAND ${EET_BIN} ARGS -i ${PROJECT_BINARY_DIR}/chimaerad.eet /Berenika-Bold.ttf			${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf			1
+	DEPENDS
+		${PROJECT_SOURCE_DIR}/index.html
+		${PROJECT_SOURCE_DIR}/content.html
+		${PROJECT_SOURCE_DIR}/jquery-1.11.1.min.js
+		${PROJECT_SOURCE_DIR}/style.css
+		${PROJECT_SOURCE_DIR}/favicon.png
+		${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf)
+add_custom_target(container ALL DEPENDS ${PROJECT_BINARY_DIR}/chimaerad.eet)
+install(FILES ${PROJECT_BINARY_DIR}/chimaerad.eet DESTINATION share/chimaerad)

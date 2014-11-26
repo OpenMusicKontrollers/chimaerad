@@ -2,8 +2,10 @@
 <html>
 
 	<head>
+		<title>ChimaeraD</title>
 		<meta name="author" content="Hanspeter Portner" />
 		<meta charset="UTF-8" />
+		<link rel="icon" type="image/png" href="/favicon.png" />
 		<link rel="stylesheet" type="text/css" href="/style.css" />
 		<script type="text/javascript" src="/jquery-1.11.1.min.js"></script>
 	</head>
@@ -11,25 +13,15 @@
 	<body>
 		<h1>Chimaera<span style="color:#c00;">D</span></h1>
 
-		<div id="content">
-		</div>
+		<div id="content1"></div>
+		<div id="content2"></div>
 	</body>
 
 	<script type="text/javascript">
 		$(document).ready(function() {
-			//var query = { '/!' : [ { 'i' : 13 } ] };
-			var query = { '/engines/group/attributes/0' : [
-				{ 'i' : 0 },
-				{ 'i' : 0 },
-				{ 'f' : 0.0 },
-				{ 'f' : 1.0 },
-				{ 'i' : false }
-			] };
-			var url = '/osc/?'+JSON.stringify(query);
-
-			$('#content').load(url, function() {
-				//alert('loaded')
-			})
+			var query = { 'osc': [ '/ping', 'ifs', 12, 13.4, 'hello' ]};
+			$('#content1').load('/?'+JSON.stringify(query));
+			$('#content2').load('/content.html');
 		})
 	</script>
 
