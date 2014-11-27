@@ -51,11 +51,6 @@ pkg_search_module(EET REQUIRED eet>=1.8)
 include_directories(${EET_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${EET_LDFLAGS})
 
-# dns_sd
-pkg_search_module(DNS_SD REQUIRED avahi-compat-libdns_sd)
-include_directories(${DNS_SD_INCLUDE_DIRS})
-set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
-
 # osc_stream
 add_library(osc_stream
 	libosc/osc.c

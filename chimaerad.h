@@ -25,7 +25,6 @@ typedef struct _chimaerad_sink_t chimaerad_sink_t;
 typedef struct _chimaerad_host_t chimaerad_host_t;
 typedef struct _chimaerad_client_t chimaerad_client_t;
 typedef struct _chimaerad_method_t chimaerad_method_t;
-typedef struct _chimaerad_sd_t chimaerad_sd_t;
 
 typedef int (*chimaerad_method_cb_t)(chimaerad_client_t *client, cJSON *osc);
 
@@ -77,12 +76,6 @@ struct _chimaerad_method_t {
 	chimaerad_method_cb_t cb;
 };
 
-struct _chimaerad_sd_t {
-	EINA_INLIST;
-	DNSServiceRef ref;
-	uv_poll_t handle;
-};
-
 struct _chimaerad_host_t {
 	Eina_Inlist *sources;
 	Eina_Inlist *sinks;
@@ -94,10 +87,8 @@ struct _chimaerad_host_t {
 	Eina_Inlist *http_clients;
 	http_parser_settings http_settings;
 
-	// avahi
-	Eina_Inlist *sd_browses;
-	Eina_Inlist *sd_resolves;
-	Eina_Inlist *sd_queries;
+	// ping-sd
+	osc_stream_t ping;
 
 	// eet
 	Eet_File *eet;

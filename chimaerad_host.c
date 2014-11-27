@@ -238,96 +238,6 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	return 0;
 }
 
-static void
-_poll_cb(uv_poll_t* handle, int status, int events)
-{
-	chimaerad_sd_t *sd = handle->data;
-	DNSServiceProcessResult(sd->ref);
-}
-
-
-static void
-_on_service_query_record_reply(
-	DNSServiceRef ref,
-	DNSServiceFlags flags,
-	uint32_t interface,
-	DNSServiceErrorType err_code,
-	const char *full_name,
-	uint16_t rrtype,
-	uint16_t rrclass,
-	uint16_t rdlen,
-	const void *rdata,
-	uint32_t ttl,
-	void *data)
-{
-	chimaerad_host_t *host = data;
-
-	printf("_service_query_record_reply: %s \n", full_name);
-	//TODO
-}
-
-static void
-_on_service_resolve_reply(
-	DNSServiceRef ref,
-	DNSServiceFlags flags,
-	uint32_t interface,
-	DNSServiceErrorType err_code,
-	const char *full_name,
-	const char *host_target,
-	uint16_t port,
-	uint16_t txt_len,
-	const unsigned char *txt_record,
-	void *data)
-{
-	chimaerad_host_t *host = data;
-
-	printf("_service_resolve_reply: %s %s %hu\n", full_name, host_target, port);
-	//TODO
-}
-
-static void
-_on_service_browse_reply(
-	DNSServiceRef ref,
-	DNSServiceFlags flags,
-	uint32_t interface,
-	DNSServiceErrorType err_code,
-	const char *service_name,
-	const char *reg_type,
-	const char *reply_domain,
-	void *data
-)
-{
-	chimaerad_host_t *host = data;
-
-	printf("%i %s %s %s\n", interface, service_name, reg_type, reply_domain);
-	//TODO
-
-	if(!strcmp(service_name, "chimaera"))
-	{
-		chimaerad_sd_t *resolve = calloc(1, sizeof(chimaerad_sd_t));
-		chimaerad_sd_t *query = calloc(1, sizeof(chimaerad_sd_t));
-		int fd;
-
-		host->sd_resolves = eina_inlist_append(host->sd_resolves, EINA_INLIST_GET(resolve));
-		host->sd_queries = eina_inlist_append(host->sd_queries, EINA_INLIST_GET(query));
-
-		DNSServiceResolve(&resolve->ref, flags, interface, service_name, reg_type, reply_domain, _on_service_resolve_reply, host);
-		DNSServiceQueryRecord(&query->ref, flags, interface, service_name, kDNSServiceType_PTR, kDNSServiceClass_IN, _on_service_query_record_reply, host);
-
-		fd = DNSServiceRefSockFD(resolve->ref);
-		printf("fd: %i\n", fd);
-		//resolve->handle.data = resolve;
-		//uv_poll_init(host->http_server.loop, &resolve->handle, fd);
-		//uv_poll_start(&resolve->handle, UV_READABLE, _poll_cb);
-
-		fd = DNSServiceRefSockFD(query->ref);
-		printf("fd: %i\n", fd);
-		//query->handle.data = query;
-		//uv_poll_init(host->http_server.loop, &query->handle, fd);
-		//uv_poll_start(&query->handle, UV_READABLE, _poll_cb);
-	}
-}
-
 int
 _eet_loader(lua_State *L)
 {
@@ -370,6 +280,62 @@ _eet_get(lua_State *L)
 		lua_pushnil(L);
 
 	return 1;
+}
+
+static void
+_mdns_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
+{
+	chimaerad_host_t *host = handle->data;
+
+	buf->base = malloc(suggested_size);
+	buf->len = suggested_size;
+}
+
+static void
+_mdns_recv_cb(uv_udp_t *handle, ssize_t nread, const uv_buf_t *buf, const struct sockaddr *addr, unsigned int flags)
+{
+	chimaerad_host_t *host = handle->data;
+
+	if(nread > 0)
+	{
+		printf("_mdns_recv_cb: %zi\n", nread);
+		free(buf->base);
+
+		//if(osc_check_packet((osc_data_t *)buf->base, buf->len))
+		//	fprintf(stderr, "_udp_recv_cb: wrongly formatted OSC packet\n");
+		//else
+		//	if(cb->recv)
+		//		cb->recv(stream, (osc_data_t *)buf->base, nread, cb->data);
+	}
+	else if (nread < 0)
+	{
+		uv_close((uv_handle_t *)handle, NULL);
+		fprintf(stderr, "_mdns_recv_cb_cb: %s\n", uv_err_name(nread));
+	}
+}
+
+static void
+_ping_recv_cb(osc_stream_t *stream, osc_data_t *buf, size_t len , void *data)
+{
+	chimaerad_host_t *host = data;
+
+	printf("_ping_recv_cb: %zu %s\n", len, buf);
+	
+	if(!strcmp((char *)buf, "/stream/resolve"))	
+	{
+		static const osc_data_t *msg = (osc_data_t *)"/ping\0\0\0,\0\0\0";
+		osc_stream_send(&host->ping, msg, sizeof(msg));
+	}
+	//TODO
+}
+
+static void
+_ping_send_cb(osc_stream_t *stream, size_t len , void *data)
+{
+	chimaerad_host_t *host = data;
+
+	printf("_ping_send_cb: %zu\n", len);
+	//TODO
 }
 
 int
@@ -450,31 +416,8 @@ chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port)
 		return -1;
 	}
 
-	putenv("AVAHI_COMPAT_NOWARN=1");
-	chimaerad_sd_t *osc_udp = calloc(1, sizeof(chimaerad_sd_t));
-	chimaerad_sd_t *osc_tcp = calloc(1, sizeof(chimaerad_sd_t));
-	chimaerad_sd_t *ntp_udp = calloc(1, sizeof(chimaerad_sd_t));
-	chimaerad_sd_t *ptp_udp = calloc(1, sizeof(chimaerad_sd_t));
-
-	host->sd_browses = eina_inlist_append(host->sd_browses, EINA_INLIST_GET(osc_udp));
-	host->sd_browses = eina_inlist_append(host->sd_browses, EINA_INLIST_GET(osc_tcp));
-	host->sd_browses = eina_inlist_append(host->sd_browses, EINA_INLIST_GET(ntp_udp));
-	host->sd_browses = eina_inlist_append(host->sd_browses, EINA_INLIST_GET(ptp_udp));
-
-	DNSServiceBrowse(&osc_udp->ref, 0, 0, "_osc._udp", NULL, _on_service_browse_reply, host);
-	DNSServiceBrowse(&osc_tcp->ref, 0, 0, "_osc._tcp", NULL, _on_service_browse_reply, host);
-	DNSServiceBrowse(&ntp_udp->ref, 0, 0, "_ntp._udp", NULL, _on_service_browse_reply, host);
-	DNSServiceBrowse(&ptp_udp->ref, 0, 0, "_ptp._udp", NULL, _on_service_browse_reply, host);
-
-	chimaerad_sd_t *sd;
-	EINA_INLIST_FOREACH(host->sd_browses, sd)
-	{
-		int fd = DNSServiceRefSockFD(sd->ref);
-		printf("fd: %i\n", fd);
-		sd->handle.data = sd;
-		uv_poll_init(loop, &sd->handle, fd);
-		uv_poll_start(&sd->handle, UV_READABLE, _poll_cb);
-	}
+	// ping
+	osc_stream_init(loop, &host->ping, "osc.udp4://255.255.255.255:4444", _ping_recv_cb, _ping_send_cb, host);
 
 	return 0;
 }
@@ -483,14 +426,6 @@ static void
 _on_host_close(uv_handle_t *handle)
 {
 	chimaerad_host_t *host = handle->data;
-
-	chimaerad_sd_t *sd;
-	EINA_INLIST_FREE(host->sd_browses, sd)
-	{
-		uv_poll_stop(&sd->handle);
-		DNSServiceRefDeallocate(sd->ref);
-		free(sd);
-	}
 
 	if(host->L)
 		lua_close(host->L);
@@ -505,6 +440,7 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 	EINA_INLIST_FREE(host->http_clients, client)
 		uv_close((uv_handle_t *)&client->handle, _on_client_close);
 
+	osc_stream_deinit(&host->ping);
 	uv_close((uv_handle_t *)&host->http_server, _on_host_close);
 	
 	return 0;
