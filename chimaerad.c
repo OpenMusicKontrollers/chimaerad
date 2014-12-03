@@ -17,16 +17,10 @@ main(int argc, char **argv)
 	if( (r = chimaerad_host_init(loop, &host, 9000)) )
 		return r;
 
-	//if( (r = chimaerad_dummy_init(loop, 3333)) )
-	//	return r;
-
 	uv_run(loop, UV_RUN_DEFAULT);
 
-	if( (r = chimaerad_dummy_deinit()) )
+	if( (r = chimaerad_host_deinit(&host)) )
 		return r;
-
-	//if( (r = chimaerad_host_deinit(&host)) )
-	//	return r;
 
 	eet_shutdown();
 	eina_shutdown();

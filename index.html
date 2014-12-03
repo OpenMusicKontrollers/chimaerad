@@ -7,22 +7,104 @@
 		<meta charset="UTF-8" />
 		<link rel="icon" type="image/png" href="/favicon.png" />
 		<link rel="stylesheet" type="text/css" href="/style.css" />
-		<script type="text/javascript" src="/jquery-1.11.1.min.js"></script>
+		<script type="text/javascript" src="/jquery-1.11.1.min.js" charset="utf-8"></script>
+		<script type="text/javascript" src="/ace/ace.js" charset="utf-8"></script>
+		<script type="text/javascript" src="/chimaerad.js" charset="utf-8"></script>
 	</head>
 
 	<body>
-		<h1>Chimaera<span style="color:#c00;">D</span></h1>
+		<div class="content">
+			<div style="float:left;">
+				<img src="/logo.png" width="70" alt="OMK Logo" />
+			</div>
 
-		<div id="content1"></div>
-		<div id="content2"></div>
+			<div>
+				<h1>Chimaera<span style="color:#c00;">D</span></h1>
+			</div>
+
+			<div id="connection_state" hidden></div>
+		</div>
+
+		<noscript>
+			<div class="content">
+				<b>ChimaeraD needs JavaScript to run, please enable it in your browser or add an exception rule for this site.</b>
+			</div>
+		</noscript>
+
+		<div id="page" class="content" hidden>
+			<table id="interfaces"></table>
+			<table id="ports"></table>
+			<table id="devices"></table>
+
+			<div id="device" hidden>
+				<h2 id="device_caption">device_caption</h2>
+
+				<table width="800px">
+					<tr><td><b>UID</b></td><td id="device_uid"></td></tr>
+					<tr><td><b>Name</b><td>
+						<input id="device_name" type="text" value="chimaera"></input>
+					</td></tr>
+
+					<tr><td><b>Lease</b></td><td>
+						<input name="device_lease" id="device_ip_dhcp" type="radio" value="dhcp">DHCP/IPv4LL</input>
+						<input name="device_lease" id="device_ip_ipv4ll" type="radio" value="ipv4ll">IPv4LL</input>
+						<input name="device_lease" id="device_ip_static" type="radio" value="static">Static</input>
+					</td></tr>
+					<tr><td><b>IP</b><td>
+						<input id="device_ip" type="text" value="ip"></input>
+					</td></tr>
+					<tr><td><b>Subnet</b></td><td id="device_reachable"></td></tr>
+					<tr><td></td><td><a href="#" id="device_com">apply and reboot</a></td></tr>
+					
+					<tr><td>---</td><td></td></tr>
+
+					<tr class="device_reach"><td><b>State</b><td>
+						<input id="device_claim" type="checkbox" value="claim">claimed</input>
+					</td></tr>
+					
+					<tr><td>---</td><td></td></tr>
+
+					<tr class="device_config"><td><b>Mode</b></td><td>
+						<input name="device_mode" id="device_mode_udp" type="radio" value="udp">UDP</input>
+						<input name="device_mode" id="device_mode_tcp" type="radio" value="tcp">TCP</input>
+					</td></tr>
+					<tr class="device_config"><td><b>Rate</b></td><td>
+						<input name="device_rate" id="device_rate_1000" type="radio" value="1000">1.0</input>
+						<input name="device_rate" id="device_rate_1500" type="radio" value="1500">1.5</input>
+						<input name="device_rate" id="device_rate_2000" type="radio" value="2000">2.0</input>
+						<input name="device_rate" id="device_rate_2500" type="radio" value="2500">2.5</input>
+						<input name="device_rate" id="device_rate_3000" type="radio" value="3000">3.0kHz</input>
+					</td></tr>
+					<tr class="device_config"><td><b>Sync</b></td><td>
+						<input name="device_sync" id="device_sync_none" type="radio" value="none">None</input>
+						<input name="device_sync" id="device_sync_sntp" type="radio" value="sntp">SNTPv4</input>
+						<input name="device_sync" id="device_sync_ptp" type="radio" value="ptp">PTPv2</input>
+					</td></tr>
+					<!--
+					<tr class="device_config"><td><b>Group 0</b></td><td>
+						<input id="device_group_0_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
+						<input id="device_group_0_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
+						<input id="device_group_0_north" type="checkbox" value="north">North</input>
+						<input id="device_group_0_south" type="checkbox" value="south">South</input>
+						<input id="device_group_0_scale" type="checkbox" value="scale">Scale</input>
+					</td></tr>
+					<tr class="device_config"><td><b>Group 1</b></td><td>
+						<input id="device_group_1_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
+						<input id="device_group_1_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
+						<input id="device_group_1_north" type="checkbox" value="north">North</input>
+						<input id="device_group_1_south" type="checkbox" value="south">South</input>
+						<input id="device_group_1_scale" type="checkbox" value="scale">Scale</input>
+					</td></tr>
+					-->
+					<tr class="device_config"><td></td><td><a href="#" id="device_conf">apply</a></td></tr>
+
+					<tr class="device_config"><td><b>Script</b></td><td><div id="editor"></div></td></tr>
+
+					<tr class="device_config"><td></td><td><a href="#" id="device_code">apply</a></td></tr>
+				</table>
+			</div>
+		</div>
+
 	</body>
-
-	<script type="text/javascript">
-		$(document).ready(function() {
-			var query = { 'osc': [ '/ping', 'ifs', 12, 13.4, 'hello' ]};
-			$('#content1').load('/?'+JSON.stringify(query));
-			$('#content2').load('/content.html');
-		})
-	</script>
 
 </html>
