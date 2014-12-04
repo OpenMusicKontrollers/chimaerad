@@ -304,14 +304,19 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 	rtmidic_out_free(host->midi);
 
 	// close http clients
+	Eina_Inlist *l;
 	chimaerad_client_t *client;
-	EINA_INLIST_FREE(host->http_clients, client)
+	EINA_INLIST_FOREACH_SAFE(host->http_clients, l, client)
+	{
+		host->http_clients = eina_inlist_remove(host->http_clients, EINA_INLIST_GET(client));
 		uv_close((uv_handle_t *)&client->handle, _on_client_close);
+	}
 
 	// deinit sources
 	chimaerad_source_t *source;
-	EINA_INLIST_FREE(host->sources, source)
+	EINA_INLIST_FOREACH_SAFE(host->sources, l, source)
 	{
+		host->sources = eina_inlist_remove(host->sources, EINA_INLIST_GET(source));
 		free(source->uid);
 		free(source->name);
 		free(source->ip);
@@ -328,8 +333,9 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 
 	// deinit interfaces
 	chimaerad_iface_t *ifa;
-	EINA_INLIST_FREE(host->ifaces, ifa)
+	EINA_INLIST_FOREACH_SAFE(host->ifaces, l, ifa)
 	{
+		host->ifaces = eina_inlist_remove(host->ifaces, EINA_INLIST_GET(ifa));
 		free(ifa->name);
 		free(ifa);
 	}
