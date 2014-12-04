@@ -10,3 +10,6 @@
 [submodule "libosc_stream"]
 	path = libosc_stream
 	url = https://github.com/OpenMusicKontrollers/libosc_stream.git
+[submodule "rtmidi"]
+	path = rtmidi
+	url = https://github.com/thestk/rtmidi.git

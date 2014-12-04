@@ -8,7 +8,7 @@ extern "C" {
 #include <stdint.h>
 
 typedef enum _RtMidiC_API {
-	RTMIDIC_API_UNSPECIFIED,    /*!< Search for a working compiled API. */
+	RTMIDIC_API_UNSPECIFIED = 0,    /*!< Search for a working compiled API. */
 	RTMIDIC_API_MACOSX_CORE,    /*!< Macintosh OS-X Core Midi API. */
 	RTMIDIC_API_LINUX_ALSA,     /*!< The Advanced Linux Sound Architecture API. */
 	RTMIDIC_API_UNIX_JACK,      /*!< The JACK Low-Latency MIDI Server API. */
@@ -20,6 +20,11 @@ typedef struct _RtMidiC_In RtMidiC_In;
 typedef struct _RtMidiC_Out RtMidiC_Out;
 
 typedef void (*RtMidiC_Callback)(double timestamp, size_t len, uint8_t* message, void **cb);
+
+/*
+ * APIs
+ */
+int rtmidic_has_compiled_api(RtMidiC_API api);
 
 /*
  * RtMidiC_In

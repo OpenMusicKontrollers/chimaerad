@@ -18,6 +18,48 @@ struct _RtMidiC_Out {
 };
 
 /*
+ * APIs
+ */
+
+int
+rtmidic_has_compiled_api(RtMidiC_API api)
+{
+	std::vector<RtMidi::Api> apis;
+	RtMidi::getCompiledApi(apis);
+
+	for(int i=0; i<apis.size(); i++)
+		switch(apis[i])
+		{
+			case RtMidi::UNSPECIFIED:
+				if(api == RTMIDIC_API_UNSPECIFIED)
+					return 1;
+				break;
+			case RtMidi::MACOSX_CORE:
+				if(api == RTMIDIC_API_MACOSX_CORE)
+					return 1;
+				break;
+			case RtMidi::LINUX_ALSA:
+				if(api == RTMIDIC_API_LINUX_ALSA)
+					return 1;
+				break;
+			case RtMidi::UNIX_JACK:
+				if(api == RTMIDIC_API_UNIX_JACK)
+					return 1;
+				break;
+			case RtMidi::WINDOWS_MM:
+				if(api == RTMIDIC_API_WINDOWS_MM)
+					return 1;
+				break;
+			case RtMidi::RTMIDI_DUMMY:
+				if(api == RTMIDIC_API_RTMIDI_DUMMY)
+					return 1;
+				break;
+		}
+
+	return 0;
+}
+
+/*
  * RtMidiC_In
  */
 RtMidiC_In *

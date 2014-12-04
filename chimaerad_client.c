@@ -57,6 +57,19 @@ _on_json_interfaces(chimaerad_client_t *client, cJSON *obj)
 }
 
 static void
+_serialize_apis(cJSON *reply, chimaerad_host_t *host)
+{
+	if(rtmidic_has_compiled_api(RTMIDIC_API_MACOSX_CORE))
+		cJSON_AddItemToArray(reply, cJSON_CreateString("MACOSX_CORE"));
+	if(rtmidic_has_compiled_api(RTMIDIC_API_LINUX_ALSA))
+		cJSON_AddItemToArray(reply, cJSON_CreateString("LINUX_ALSA"));
+	if(rtmidic_has_compiled_api(RTMIDIC_API_UNIX_JACK))
+		cJSON_AddItemToArray(reply, cJSON_CreateString("UNIX_JACK"));
+	if(rtmidic_has_compiled_api(RTMIDIC_API_WINDOWS_MM))
+		cJSON_AddItemToArray(reply, cJSON_CreateString("WINDOWS_MM"));
+}
+
+static void
 _serialize_ports(cJSON *reply, chimaerad_host_t *host)
 {
 	unsigned int count = rtmidic_out_port_count(host->midi);
@@ -66,6 +79,25 @@ _serialize_ports(cJSON *reply, chimaerad_host_t *host)
 		cJSON_AddItemToArray(reply, cJSON_CreateString(name));
 		free(name);
 	}
+}
+
+static int
+_on_json_apis(chimaerad_client_t *client, cJSON *obj)
+{
+	chimaerad_host_t *host = client->host;
+
+	printf("/chimaerad/apis:\n");
+
+	cJSON *root, *arr;
+	root = cJSON_CreateObject();
+	cJSON_AddItemToObject(root, "success", cJSON_CreateBool(1));
+	cJSON_AddItemToObject(root, "reply", arr=cJSON_CreateArray());
+
+	_serialize_apis(arr, host);
+
+	client->chunk = cJSON_Print(root);
+	cJSON_Delete(root);
+	return _client_json_write(client);
 }
 
 static int
@@ -330,12 +362,47 @@ _on_json_source_conf(chimaerad_client_t *client, cJSON *obj)
 }
 
 static int
+_on_json_api_claim(chimaerad_client_t *client, cJSON *obj)
+{
+	chimaerad_host_t *host = client->host;
+	char *name = cJSON_GetObjectItem(obj, "name")->valuestring;
+
+	printf("/chimaerad/api/claim: %s\n", name);
+
+	RtMidiC_API api = RTMIDIC_API_UNSPECIFIED;
+	if(!strcmp(name, "MACOSX_CORE"))
+		api = RTMIDIC_API_MACOSX_CORE;
+	else if(!strcmp(name, "LINUX_ALSA"))
+		api = RTMIDIC_API_LINUX_ALSA;
+	else if(!strcmp(name, "UNIX_JACK"))
+		api = RTMIDIC_API_UNIX_JACK;
+	else if(!strcmp(name, "WINDOWS_MM"))
+		api = RTMIDIC_API_WINDOWS_MM;
+
+	rtmidic_out_port_close(host->midi);
+	rtmidic_out_free(host->midi);
+	host->midi = rtmidic_out_new(api, "ChimaeraD");
+
+	cJSON *root;
+	root = cJSON_CreateObject();
+	cJSON_AddItemToObject(root, "success", cJSON_CreateBool(host->midi ? 1 : 0));
+
+	cJSON *reply;
+	cJSON_AddItemToObject(root, "reply", reply=cJSON_CreateArray());
+	_serialize_apis(reply, host);
+
+	client->chunk = cJSON_Print(root);
+	cJSON_Delete(root);
+	return _client_json_write(client);
+}
+
+static int
 _on_json_port_claim(chimaerad_client_t *client, cJSON *obj)
 {
 	chimaerad_host_t *host = client->host;
 	int pos = cJSON_GetObjectItem(obj, "pos")->valueint;
 
-	printf("/chimaerad/port/name: %i\n", pos);
+	printf("/chimaerad/port/claim: %i\n", pos);
 
 	int res;
 
@@ -363,6 +430,7 @@ static const chimaerad_method_t methods [] = {
 
 	{"/chimaerad/interfaces", _on_json_interfaces},
 	{"/chimaerad/sources", _on_json_sources},
+	{"/chimaerad/apis", _on_json_apis},
 	{"/chimaerad/ports", _on_json_ports},
 
 	{"/chimaerad/source/info",  _on_json_source_info},
@@ -370,6 +438,7 @@ static const chimaerad_method_t methods [] = {
 	{"/chimaerad/source/claim",  _on_json_source_claim},
 	{"/chimaerad/source/conf",  _on_json_source_conf},
 	
+	{"/chimaerad/api/claim",  _on_json_api_claim},
 	{"/chimaerad/port/claim",  _on_json_port_claim},
 
 	{NULL, NULL}	

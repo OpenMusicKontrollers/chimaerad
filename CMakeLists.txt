@@ -22,11 +22,40 @@ include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
 # RtMidi
-option(USE_RTMIDI "use RtMidi" ON)
-if(USE_RTMIDI)
+option(USE_SYSTEM_RTMIDI "use System RtMidi" ON)
+if(USE_SYSTEM_RTMIDI)
 	pkg_search_module(RTMIDI REQUIRED librtmidi>=2.1)
 	include_directories(${RTMIDI_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${RTMIDI_LDFLAGS})
+else() # use embedded rtmidi
+	add_library(rtmidi rtmidi/RtMidi.cpp)
+	include_directories(${PROJECT_SOURCE_DIR}/rtmidi)
+
+	if(WIN32)
+		# what?
+	endif()
+
+	if(APPLE)
+		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__ -framework CoreMIDI -framework CoreAudio -framework CoreFoundation)
+	endif()
+
+	if(UNIX) # for Apple and Linux
+		pkg_search_module(JACK OPTIONAL jack)
+		if(${JACK_FOUND})
+			include_directories(${JACK_INCLUDE_DIRS})
+			set(LIBS ${LIBS} ${JACK_LDFLAGS})
+			target_compile_definitions(rtmidi PUBLIC -D__UNIX_JACK__)
+		endif()
+	endif()
+
+	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+		pkg_search_module(ALSA OPTIONAL alsa)
+		if(${ALSA_FOUND})
+			include_directories(${ALSA_INCLUDE_DIRS})
+			set(LIBS ${LIBS} ${ALSA_LDFLAGS})
+			target_compile_definitions(rtmidi PUBLIC -D__LINUX_ALSA__)
+		endif()
+	endif()
 endif()
 
 # lua
@@ -75,6 +104,9 @@ add_executable(chimaerad
 	http-parser/http_parser.c
 	tlsf-3.0/tlsf.c)
 target_link_libraries(chimaerad osc_stream cjson ${LIBS})
+if(NOT USE_SYSTEM_RTMIDI)
+	target_link_libraries(chimaerad rtmidi)
+endif()
 install(TARGETS chimaerad DESTINATION bin)
 
 # container

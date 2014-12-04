@@ -453,7 +453,13 @@ _midi(lua_State *L)
 int
 chimaerad_source_init(uv_loop_t *loop, chimaerad_source_t *source)
 {
+#if defined(__WINDOWS__)
+	source->area = malloc(AREA_SIZE);
+#elif defined(__linux__) || defined(__CYGWIN__)
 	source->area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_32BIT|MAP_PRIVATE|MAP_ANONYMOUS|MAP_LOCKED, -1, 0);
+#elif defined(__APPLE__)
+	source->area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE, -1, 0);
+#endif
 	source->tlsf = tlsf_create_with_pool(source->area, AREA_SIZE);
 	source->pool = tlsf_get_pool(source->tlsf);
 	
@@ -536,7 +542,14 @@ chimaerad_source_deinit(chimaerad_source_t *source)
 
 	tlsf_remove_pool(source->tlsf, source->pool);
 	tlsf_destroy(source->tlsf);
+#if defined(__WINDOWS__)
+	free(source->area);
+	source->area = malloc(AREA_SIZE);
+#elif defined(__linux__) || defined(__CYGWIN__)
 	munmap(source->area, AREA_SIZE);
+#elif defined(__APPLE__)
+	munmap(source->area, AREA_SIZE);
+#endif
 
 	source->claimed = 0;
 

@@ -5,6 +5,7 @@ var connected = true; // is the app connected to the daemon?
 var interfaces = undefined;
 var devices = undefined;
 var device = undefined;
+var apis = undefined;
 var ports = undefined;
 
 function update_interfaces(data) {
@@ -34,6 +35,25 @@ function update_devices(data) {
 	});
 	$('#devices').html(items.join());
 	$('input[type="radio"][name="devices_radio"]').click(on_click_device);
+}
+
+function update_apis(data) {
+	var items = [];
+	if(data.success == false)
+		return;
+	apis = data.reply;
+	if(apis === undefined)
+		return;
+
+	$.each(apis, function(i, api) {
+		items.push('<tr><td><b>Midi API #' + (i+1) + '</b></td><td><input type="radio" name="apis_radio" value="' + api + '">' + api + '</input></td></tr>');
+	});
+	$('#apis').html(items.join());
+	$('input[type="radio"][name="apis_radio"]').click(on_click_apis);
+
+	// update ports from that API
+	var query = {'query':{'/chimaerad/ports':{}}};
+	$.getJSON('/?'+JSON.stringify(query), update_ports);
 }
 
 function update_ports(data) {
@@ -161,6 +181,13 @@ function on_click_device(e) {
 	$.getJSON('/?'+JSON.stringify(query), update_device);
 }
 
+// get info of Midi APIs with given name and make it the active API
+function on_click_apis(e) {
+	var name = $(this).val();
+	var query = {'query':{'/chimaerad/api/claim':{'name':name}}};
+	$.getJSON('/?'+JSON.stringify(query), update_apis);
+}
+
 // get info of Midi port with given name and make it the active port
 function on_click_ports(e) {
 	var pos = parseInt($(this).val(), 10);
@@ -208,12 +235,14 @@ function on_code_load(data) {
  * run after page load/refresh
  */
 $(document).ready(function() {
-	// grab interfaces
-	var query = {'query':{'/chimaerad/interfaces':{}}};
-	$.getJSON('/?'+JSON.stringify(query), update_interfaces);
+	var query;
 
-	query = {'query':{'/chimaerad/ports':{}}};
-	$.getJSON('/?'+JSON.stringify(query), update_ports);
+	// grab interfaces
+	query = {'query':{'/chimaerad/interfaces':{}}};
+	$.getJSON('/?'+JSON.stringify(query), update_interfaces);
+	
+	query = {'query':{'/chimaerad/apis':{}}};
+	$.getJSON('/?'+JSON.stringify(query), update_apis);
 
 	$.get('/dummy.lua', on_code_load);
 

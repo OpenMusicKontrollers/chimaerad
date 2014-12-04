@@ -282,6 +282,7 @@ chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port)
 	}
 
 	// init midi
+	//FIXME
 	host->midi = rtmidic_out_new(RTMIDIC_API_UNIX_JACK, "ChimaeraD");
 	//host->midi = rtmidic_out_new(RTMIDIC_API_LINUX_ALSA, "ChimaeraD");
 
