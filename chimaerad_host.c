@@ -13,6 +13,20 @@ static const char *HTTP_JS = "Content-Type: text/javascript\r\n\r\n";
 static const char *HTTP_PNG = "Content-Type: image/png\r\n\r\n";
 static const char *HTTP_OCTET_STREAM = "Content-Type: application/octet-stream\r\n\r\n";
 
+#if defined(__WINDOWS__)
+static inline char *
+strndup(const char *s, size_t n)
+{
+    char *result;
+    size_t len = strlen (s);
+    if (n < len) len = n;
+    result = (char *) malloc (len + 1);
+    if (!result) return 0;
+    result[len] = '\0';
+    return (char *) strncpy (result, s, len);
+}
+#endif
+
 static void
 _on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
@@ -109,8 +123,6 @@ _on_connected(uv_stream_t *handle, int status)
 static char *
 _read_file(const char *path, size_t *size)
 {
-	if(path[0] == '\0')
-		path = "index.html";
 	printf("path: %s\n", path);
 
 	FILE *f = fopen(path, "rb");
@@ -124,7 +136,7 @@ _read_file(const char *path, size_t *size)
 	if(!str)
 		goto err;
 
-	if(fread(str, fsize, 1, f))
+	if(fread(str, fsize, 1, f) != 1)
 		goto err;
 	fclose(f);
 	str[fsize] = 0;
@@ -180,6 +192,11 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	{
 		size_t size;
 		//client->chunk = eet_read(host->eet, path, &size);
+		if(!strcmp(path, "/"))
+		{
+			free(path);
+			path = strdup("/index.html");
+		}
 		client->chunk = _read_file(path+1, &size);
 		uv_buf_t msg [3];
 

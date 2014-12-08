@@ -1,6 +1,8 @@
 #include <chimaerad.h>
 
-#include <sys/mman.h>
+#if !defined(__WINDOWS__)
+#	include <sys/mman.h>
+#endif
 
 #define AREA_SIZE 0x1000000UL // 16MB
 
@@ -65,10 +67,12 @@ _thread(void *arg)
 {
 	chimaerad_source_t *source = arg;
 
+#if !defined(__WINDOWS__)
 	struct sched_param schedp = {
 		.sched_priority = 50
 	};
 	pthread_setschedparam(source->thread, SCHED_RR, &schedp);
+#endif
 
 	uv_run(&source->loop, UV_RUN_DEFAULT);
 }

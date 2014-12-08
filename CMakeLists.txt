@@ -16,6 +16,9 @@ include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
 
 set(LIBS -lm)
+if(WIN32)
+	set(LIBS ${LIBS} -lws2_32 -lpsapi -liphlpapi)
+endif()
 
 # libuv
 pkg_search_module(UV REQUIRED libuv>=1.0.0)
@@ -29,7 +32,7 @@ if(USE_SYSTEM_RTMIDI)
 	include_directories(${RTMIDI_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${RTMIDI_LDFLAGS})
 else() # use embedded rtmidi
-	add_library(rtmidi rtmidi/RtMidi.cpp)
+	add_library(rtmidi STATIC rtmidi/RtMidi.cpp)
 	include_directories(${PROJECT_SOURCE_DIR}/rtmidi)
 
 	if(WIN32)
@@ -71,21 +74,24 @@ else()
 	set(LIBS ${LIBS} ${LUA_LDFLAGS})
 endif()
 
-# osc_stream
-add_library(osc_stream
+if(WIN32)
+	set(BUILD_SHARED_LIBRARIES OFF)
+	set(CMAKE_EXE_LINKER_FLAGS "-std=gnu99 -static -static-libgcc -static-libstdc++")
+endif()
+
+# chimaerad
+add_executable(chimaerad
+# osc
 	libosc/osc.c
+# osc_stream
 	libosc_stream/osc_stream.c
 	libosc_stream/osc_stream_pipe.c
 	libosc_stream/osc_stream_slip.c
 	libosc_stream/osc_stream_tcp.c
-	libosc_stream/osc_stream_udp.c)
-
+	libosc_stream/osc_stream_udp.c
 # cJSON
-add_library(cjson
-	cJSON/cJSON.c)
-
+	cJSON/cJSON.c
 # chimaerad
-add_executable(chimaerad
 	chimaerad.c
 	chimaerad_host.c
 	chimaerad_discover.c
@@ -94,7 +100,7 @@ add_executable(chimaerad
 	rtmidi_c.cpp
 	http-parser/http_parser.c
 	tlsf-3.0/tlsf.c)
-target_link_libraries(chimaerad osc_stream cjson ${LIBS})
+target_link_libraries(chimaerad ${LIBS})
 if(NOT USE_SYSTEM_RTMIDI)
 	target_link_libraries(chimaerad rtmidi)
 endif()
