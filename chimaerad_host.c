@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 
 static const char *HTTP_200 = "HTTP/1.1 200 OK\r\n";
 static const char *HTTP_404 = "HTTP/1.1 404 Not Found\r\n";
@@ -25,7 +26,7 @@ _on_client_close(uv_handle_t *handle)
 	chimaerad_client_t *client = handle->data;
 	chimaerad_host_t *host = client->host;
 
-	host->http_clients = eina_inlist_remove(host->http_clients, EINA_INLIST_GET(client));
+	host->http_clients = inlist_remove(host->http_clients, INLIST_GET(client));
 	free(client);
 }
 
@@ -79,7 +80,7 @@ _on_connected(uv_stream_t *handle, int status)
 		return;
 
 	client->host = host;
-	host->http_clients = eina_inlist_append(host->http_clients, EINA_INLIST_GET(client));
+	host->http_clients = inlist_append(host->http_clients, INLIST_GET(client));
 
 	if((err = uv_tcp_init(handle->loop, &client->handle)))
 	{
@@ -103,6 +104,41 @@ _on_connected(uv_stream_t *handle, int status)
 		fprintf(stderr, "uv_read_start: %s\n", uv_strerror(err));
 		return;
 	}
+}
+
+static char *
+_read_file(const char *path, size_t *size)
+{
+	if(path[0] == '\0')
+		path = "index.html";
+	printf("path: %s\n", path);
+
+	FILE *f = fopen(path, "rb");
+	if(!f)
+		goto err;
+	fseek(f, 0, SEEK_END);
+	size_t fsize = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	
+	char *str = malloc(fsize + 1);
+	if(!str)
+		goto err;
+
+	if(fread(str, fsize, 1, f))
+		goto err;
+	fclose(f);
+	str[fsize] = 0;
+
+	*size = fsize;
+	return str;
+
+	err:
+		*size = 0;
+		if(str)
+			free(str);
+		if(f)
+			fclose(f);
+		return NULL;
 }
 
 static int
@@ -142,8 +178,9 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	}
 	else // !json
 	{
-		int size;
-		client->chunk = eet_read(host->eet, path, &size);
+		size_t size;
+		//client->chunk = eet_read(host->eet, path, &size);
+		client->chunk = _read_file(path+1, &size);
 		uv_buf_t msg [3];
 
 		if(client->chunk)
@@ -222,7 +259,7 @@ _get_interfaces(chimaerad_host_t *host)
 		if( (iface->is_internal == 0) && (iface->address.address4.sin_family == AF_INET) )
 		{
 			chimaerad_iface_t *ifa = calloc(1, sizeof(chimaerad_iface_t));
-			host->ifaces = eina_inlist_append(host->ifaces, EINA_INLIST_GET(ifa));
+			host->ifaces = inlist_append(host->ifaces, INLIST_GET(ifa));
 
 			ifa->name = strdup(ifaces[i].name);
 			ifa->ip4 = be32toh(ifaces[i].address.address4.sin_addr.s_addr);
@@ -241,8 +278,6 @@ chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port)
 	int err;
 
 	_get_interfaces(host);
-
-	host->eet = eet_open("chimaerad.eet", EET_FILE_MODE_READ);
 
 	host->http_settings.on_url = _on_url;
 	host->http_server.data = host;
@@ -293,8 +328,6 @@ static void
 _on_host_close(uv_handle_t *handle)
 {
 	chimaerad_host_t *host = handle->data;
-
-	eet_close(host->eet);
 }
 
 int
@@ -305,19 +338,19 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 	rtmidic_out_free(host->midi);
 
 	// close http clients
-	Eina_Inlist *l;
+	Inlist *l;
 	chimaerad_client_t *client;
-	EINA_INLIST_FOREACH_SAFE(host->http_clients, l, client)
+	INLIST_FOREACH_SAFE(host->http_clients, l, client)
 	{
-		host->http_clients = eina_inlist_remove(host->http_clients, EINA_INLIST_GET(client));
+		host->http_clients = inlist_remove(host->http_clients, INLIST_GET(client));
 		uv_close((uv_handle_t *)&client->handle, _on_client_close);
 	}
 
 	// deinit sources
 	chimaerad_source_t *source;
-	EINA_INLIST_FOREACH_SAFE(host->sources, l, source)
+	INLIST_FOREACH_SAFE(host->sources, l, source)
 	{
-		host->sources = eina_inlist_remove(host->sources, EINA_INLIST_GET(source));
+		host->sources = inlist_remove(host->sources, INLIST_GET(source));
 		free(source->uid);
 		free(source->name);
 		free(source->ip);
@@ -334,9 +367,9 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 
 	// deinit interfaces
 	chimaerad_iface_t *ifa;
-	EINA_INLIST_FOREACH_SAFE(host->ifaces, l, ifa)
+	INLIST_FOREACH_SAFE(host->ifaces, l, ifa)
 	{
-		host->ifaces = eina_inlist_remove(host->ifaces, EINA_INLIST_GET(ifa));
+		host->ifaces = inlist_remove(host->ifaces, INLIST_GET(ifa));
 		free(ifa->name);
 		free(ifa);
 	}

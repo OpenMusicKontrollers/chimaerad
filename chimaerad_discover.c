@@ -1,5 +1,7 @@
 #include <chimaerad.h>
 
+#include <stdlib.h>
+
 static void
 cidr_to_subnet(uint32_t *subnet32, uint8_t mask)
 {
@@ -35,7 +37,7 @@ chimaerad_source_t *
 host_find_source(chimaerad_host_t *host, const char *uid)
 {
 	chimaerad_source_t *source;
-	EINA_INLIST_FOREACH(host->sources, source)
+	INLIST_FOREACH(host->sources, source)
 		if(!strcmp(source->uid, uid))
 			return source;
 	
@@ -87,7 +89,7 @@ _success(osc_time_t time, const char *path, const char *fmt, osc_data_t *arg, si
 		if(!source)
 		{
 			source = calloc(1, sizeof(chimaerad_source_t));
-			host->sources = eina_inlist_append(host->sources, EINA_INLIST_GET(source));
+			host->sources = inlist_append(host->sources, INLIST_GET(source));
 			source->host = host;
 
 			source->uid = strdup(uid);
@@ -111,7 +113,7 @@ _success(osc_time_t time, const char *path, const char *fmt, osc_data_t *arg, si
 
 			source->reachable = 0;
 			chimaerad_iface_t *ifa;
-			EINA_INLIST_FOREACH(host->ifaces, ifa)
+			INLIST_FOREACH(host->ifaces, ifa)
 				if( (source->ip4 & source->mask) == (ifa->ip4 & ifa->mask) )
 				{
 					source->iface = ifa;

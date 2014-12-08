@@ -9,15 +9,10 @@
 #include <lualib.h>
 #include <lauxlib.h>
 
-// include Efl
-#include <Eina.h>
-#include <Eet.h>
-
 // include varia
 #include <osc_stream.h>
 #include <http_parser.h>
 #include <tlsf.h>
-#include <dns_sd.h>
 #include <cJSON.h>
 #include <rtmidi_c.h>
 
@@ -44,7 +39,7 @@ enum _chimaerad_source_lease_t {
 };
 
 struct _chimaerad_source_t {
-	EINA_INLIST;
+	INLIST;
 
 	chimaerad_host_t *host;
 
@@ -77,7 +72,7 @@ struct _chimaerad_source_t {
 };
 
 struct _chimaerad_client_t {
-	EINA_INLIST;
+	INLIST;
 	uv_tcp_t handle;
 	http_parser parser;
 	uv_write_t req;
@@ -91,7 +86,7 @@ struct _chimaerad_method_t {
 };
 
 struct _chimaerad_iface_t {
-	EINA_INLIST;
+	INLIST;
 	char *name;
 	char ip [24];
 	uint32_t ip4;
@@ -99,20 +94,17 @@ struct _chimaerad_iface_t {
 };
 
 struct _chimaerad_host_t {
-	Eina_Inlist *sources; // aka chimaera
-	Eina_Inlist *ifaces;
+	Inlist *sources; // aka chimaera
+	Inlist *ifaces;
 	RtMidiC_Out *midi;	
 
 	// http
 	uv_tcp_t http_server;
-	Eina_Inlist *http_clients;
+	Inlist *http_clients;
 	http_parser_settings http_settings;
 
 	// broadcast discover
 	osc_stream_t discover;
-
-	// eet
-	Eet_File *eet;
 };
 
 int chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port);

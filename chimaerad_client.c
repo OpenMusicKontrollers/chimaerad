@@ -1,5 +1,7 @@
 #include <chimaerad.h>
 
+#include <stdlib.h>
+
 static const char *HTTP_200 = "HTTP/1.1 200 OK\r\n";
 static const char *HTTP_JSON = "Content-Type: text/json\r\n\r\n";
 
@@ -48,7 +50,7 @@ _on_json_interfaces(chimaerad_client_t *client, cJSON *obj)
 	cJSON_AddItemToObject(root, "reply", arr=cJSON_CreateArray());
 
 	chimaerad_iface_t *ifa;
-	EINA_INLIST_FOREACH(host->ifaces, ifa)
+	INLIST_FOREACH(host->ifaces, ifa)
 		cJSON_AddItemToArray(arr, cJSON_CreateString(ifa->ip));
 
 	client->chunk = cJSON_Print(root);
@@ -132,7 +134,7 @@ _on_json_sources(chimaerad_client_t *client, cJSON *obj)
 	cJSON_AddItemToObject(root, "reply", arr=cJSON_CreateArray());
 
 	chimaerad_source_t *source;
-	EINA_INLIST_FOREACH(host->sources, source)
+	INLIST_FOREACH(host->sources, source)
 		cJSON_AddItemToArray(arr, cJSON_CreateString(source->uid));
 
 	client->chunk = cJSON_Print(root);
