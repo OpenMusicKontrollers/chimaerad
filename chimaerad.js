@@ -8,6 +8,21 @@ var device = undefined;
 var apis = undefined;
 var ports = undefined;
 
+var tab = 'menu_disc';
+
+function update_menu() {
+	$('#tab_disc').hide();
+	$('#tab_midi').hide();
+	$('#tab_conf').hide();
+
+	if(tab == 'menu_disc')
+		$('#tab_disc').show();
+	else if(tab == 'menu_midi')
+		$('#tab_midi').show();
+	else if(tab == 'menu_conf')
+		$('#tab_conf').show();
+}
+
 function update_interfaces(data) {
 	var items = [];
 	if(data.success == false)
@@ -17,7 +32,7 @@ function update_interfaces(data) {
 		return;
 
 	$.each(interfaces, function(i, iface) {
-		items.push('<tr><td><b>Network interface #' + (i+1) + '</b></td><td>' + iface + '</td></tr>')	
+		items.push('<li>' + iface + '</li>')	
 	});
 	$('#interfaces').html(items.join());
 }
@@ -31,7 +46,7 @@ function update_devices(data) {
 		return;
 
 	$.each(devices, function(i, device) {
-		items.push('<tr><td><b>Chimaera device #' + (i+1) + '</b></td><td><input type="radio" name="devices_radio" value="' + device + '">' + device + '</input></td></tr>');
+		items.push('<li><input type="radio" name="devices_radio" value="' + device + '">' + device + '</input></li>');
 	});
 	$('#devices').html(items.join());
 	$('input[type="radio"][name="devices_radio"]').click(on_click_device);
@@ -46,7 +61,7 @@ function update_apis(data) {
 		return;
 
 	$.each(apis, function(i, api) {
-		items.push('<tr><td><b>Midi API #' + (i+1) + '</b></td><td><input type="radio" name="apis_radio" value="' + api + '">' + api + '</input></td></tr>');
+		items.push('<li><input type="radio" name="apis_radio" value="' + api + '">' + api + '</input></li>');
 	});
 	$('#apis').html(items.join());
 	$('input[type="radio"][name="apis_radio"]').click(on_click_apis);
@@ -66,12 +81,17 @@ function update_ports(data) {
 
 	var j = 0;
 	$.each(ports, function(i, port) {
-		items.push('<tr><td><b>Midi port #' + (i+1) + '</b></td><td><input type="radio" name="ports_radio" value="' + i + '">' + port + '</input></td></tr>');
+		items.push('<li><input type="radio" name="ports_radio" value="' + i + '">' + port + '</input></li>');
 		j++;
 	});
-	items.push('<tr><td><b>Midi port #' + (j+1) + '</b></td><td><input type="radio" name="ports_radio" value="-1">Virtual</input></td></tr>');
+	items.push('<li><input type="radio" name="ports_radio" value="-1">Virtual</input></li>');
 	$('#ports').html(items.join());
 	$('input[type="radio"][name="ports_radio"]').click(on_click_ports);
+}
+
+function on_menu(e) {
+	tab = $(this).attr('id');
+	update_menu();
 }
 
 function on_change_name(e) {
@@ -80,6 +100,7 @@ function on_change_name(e) {
 
 function on_change_lease(e) {
 	device.lease = $(this).val();
+	$('#device_ip').prop('value', device.ip).prop('disabled', device.lease != 'static').change(on_change_ip);
 }
 
 function on_change_ip(e) {
@@ -107,10 +128,9 @@ function update_device(data) {
 		$('#device').hide();
 		return;
 	}
-	$('#device').show();
+	$('#div_comm').show();
 
 	// comm
-	$('#device_caption').html(device.name);
 	$('#device_uid').html(device.uid);
 	$('#device_name').val(device.name).change(on_change_name);
 	$('#device_ip_dhcp').prop('checked', device.lease == 'dhcp').change(on_change_lease);
@@ -128,10 +148,10 @@ function update_device(data) {
 	// claim
 	$('#device_claim').prop('checked', device.claimed);
 	if(device.claimed == false) {
-		$('.device_config').hide();
+		$('#div_conf').hide();
 		return;
 	}
-	$('.device_config').show();
+	$('#div_conf').show();
 
 	// config
 	$('#device_mode_udp').prop('checked', device.mode == 'udp').change(on_change_mode);
@@ -206,7 +226,7 @@ function on_device_com(e) {
 function on_device_claim(e) {
 	var claim = {'query':{'/chimaerad/source/claim':device}};
 	device.claimed = $(this).prop('checked');
-	$('.device_config').hide();
+	$('#div_conf').hide();
 	$.getJSON('/?'+JSON.stringify(claim), update_device);
 }
 
@@ -251,6 +271,11 @@ $(document).ready(function() {
 	$('#device_claim').unbind().change(on_device_claim);
 	$('#device_conf').unbind().click(on_device_conf);
 	$('#device_code').unbind().click(on_device_code);
+	
+	$('#menu_disc').unbind().click(on_menu);
+	$('#menu_midi').unbind().click(on_menu);
+	$('#menu_conf').unbind().click(on_menu);
+	update_menu();
 
 	on_click_devices(null); //TODO add <a>
 

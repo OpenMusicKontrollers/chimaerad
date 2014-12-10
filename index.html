@@ -23,6 +23,14 @@
 			</div>
 
 			<div id="connection_state" hidden></div>
+
+			<div id="menu" style="text-align:left">
+				<a class="header" id="menu_disc" href="#menu_disc"><b>-DISCOVER-</b></a>
+				<!--
+				<a class="header" id="menu_midi" href="#menu_midi"><b>-MIDI-</b></a>
+				<a class="header" id="menu_conf" href="#menu_conf"><b>-CONF-</b></a>
+				-->
+			</div>
 		</div>
 
 		<noscript>
@@ -31,78 +39,95 @@
 			</div>
 		</noscript>
 
-		<div id="page" class="content" hidden>
-			<table id="interfaces"></table>
-			<table id="apis"></table>
-			<table id="ports"></table>
-			<table id="devices"></table>
+		<div id="page" hidden>
+			<div id="tab_disc" class="content">
+				<h2>COMM</h2>
+				<h3>Host network interfaces</h3>
+				<ul id="interfaces"></ul>
+				<h3>Chimaera devices</h3>
+				<ul id="devices"></ul>
 
-			<div id="device" hidden>
-				<h2 id="device_caption">device_caption</h2>
+				<div id="div_comm" hidden>
+					<table width="800px">
+						<tr><td><b>UID</b></td><td id="device_uid"></td></tr>
+						<tr><td><b>Name</b><td>
+							<input id="device_name" type="text" value="chimaera"></input>
+						</td></tr>
 
-				<table width="800px">
-					<tr><td><b>UID</b></td><td id="device_uid"></td></tr>
-					<tr><td><b>Name</b><td>
-						<input id="device_name" type="text" value="chimaera"></input>
-					</td></tr>
+						<tr><td><b>Lease</b></td><td>
+							<input name="device_lease" id="device_ip_dhcp" type="radio" value="dhcp">DHCP/IPv4LL</input>
+							<input name="device_lease" id="device_ip_ipv4ll" type="radio" value="ipv4ll">IPv4LL</input>
+							<input name="device_lease" id="device_ip_static" type="radio" value="static">Static</input>
+						</td></tr>
+						<tr><td><b>IP</b><td>
+							<input id="device_ip" type="text" value="ip"></input>
+						</td></tr>
+						<tr><td><b>Subnet</b></td><td id="device_reachable"></td></tr>
+						<tr><td></td><td><a href="#device_com" id="device_com">apply and reboot</a></td></tr>
+						
+						<tr><td>---</td><td></td></tr>
 
-					<tr><td><b>Lease</b></td><td>
-						<input name="device_lease" id="device_ip_dhcp" type="radio" value="dhcp">DHCP/IPv4LL</input>
-						<input name="device_lease" id="device_ip_ipv4ll" type="radio" value="ipv4ll">IPv4LL</input>
-						<input name="device_lease" id="device_ip_static" type="radio" value="static">Static</input>
-					</td></tr>
-					<tr><td><b>IP</b><td>
-						<input id="device_ip" type="text" value="ip"></input>
-					</td></tr>
-					<tr><td><b>Subnet</b></td><td id="device_reachable"></td></tr>
-					<tr><td></td><td><a href="#" id="device_com">apply and reboot</a></td></tr>
-					
-					<tr><td>---</td><td></td></tr>
+						<tr class="device_reach"><td><b>State</b><td>
+							<input id="device_claim" type="checkbox" value="claim">claimed</input>
+						</td></tr>
+						
+						<tr><td>---</td><td></td></tr>
+					</table>
+				</div>
 
-					<tr class="device_reach"><td><b>State</b><td>
-						<input id="device_claim" type="checkbox" value="claim">claimed</input>
-					</td></tr>
-					
-					<tr><td>---</td><td></td></tr>
+			</div>
 
-					<tr class="device_config"><td><b>Mode</b></td><td>
-						<input name="device_mode" id="device_mode_udp" type="radio" value="udp">UDP</input>
-						<input name="device_mode" id="device_mode_tcp" type="radio" value="tcp">TCP</input>
-					</td></tr>
-					<tr class="device_config"><td><b>Rate</b></td><td>
-						<input name="device_rate" id="device_rate_1000" type="radio" value="1000">1.0</input>
-						<input name="device_rate" id="device_rate_1500" type="radio" value="1500">1.5</input>
-						<input name="device_rate" id="device_rate_2000" type="radio" value="2000">2.0</input>
-						<input name="device_rate" id="device_rate_2500" type="radio" value="2500">2.5</input>
-						<input name="device_rate" id="device_rate_3000" type="radio" value="3000">3.0kHz</input>
-					</td></tr>
-					<tr class="device_config"><td><b>Sync</b></td><td>
-						<input name="device_sync" id="device_sync_none" type="radio" value="none">None</input>
-						<input name="device_sync" id="device_sync_sntp" type="radio" value="sntp">SNTPv4</input>
-						<input name="device_sync" id="device_sync_ptp" type="radio" value="ptp">PTPv2</input>
-					</td></tr>
-					<!--
-					<tr class="device_config"><td><b>Group 0</b></td><td>
-						<input id="device_group_0_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
-						<input id="device_group_0_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
-						<input id="device_group_0_north" type="checkbox" value="north">North</input>
-						<input id="device_group_0_south" type="checkbox" value="south">South</input>
-						<input id="device_group_0_scale" type="checkbox" value="scale">Scale</input>
-					</td></tr>
-					<tr class="device_config"><td><b>Group 1</b></td><td>
-						<input id="device_group_1_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
-						<input id="device_group_1_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
-						<input id="device_group_1_north" type="checkbox" value="north">North</input>
-						<input id="device_group_1_south" type="checkbox" value="south">South</input>
-						<input id="device_group_1_scale" type="checkbox" value="scale">Scale</input>
-					</td></tr>
-					-->
-					<tr class="device_config"><td></td><td><a href="#" id="device_conf">apply</a></td></tr>
+			<div id="tab_midi" class="content">
+				<h2>MIDI</h2>
+				<h3>Host MIDI APIs</h3>
+				<ul id="apis"></ul>
+				<h3>Host MIDI Ports</h3>
+				<ul id="ports"></ul>
+			</div>
 
-					<tr class="device_config"><td><b>Script</b></td><td><div id="editor"></div></td></tr>
+			<div id="tab_conf" class="content">
+				<h2>CONF</h2>
+				<div id="div_conf" hidden>
+					<table width="800px">
+						<tr><td><b>Mode</b></td><td>
+							<input id="device_mode_udp" type="radio" value="udp">UDP</input>
+							<input id="device_mode_tcp" type="radio" value="tcp">TCP</input>
+						</td></tr>
+						<tr><td><b>Rate</b></td><td>
+							<input id="device_rate_1000" type="radio" value="1000">1.0</input>
+							<input id="device_rate_1500" type="radio" value="1500">1.5</input>
+							<input id="device_rate_2000" type="radio" value="2000">2.0</input>
+							<input id="device_rate_2500" type="radio" value="2500">2.5</input>
+							<input id="device_rate_3000" type="radio" value="3000">3.0kHz</input>
+						</td></tr>
+						<tr><td><b>Sync</b></td><td>
+							<input name="device_sync" id="device_sync_none" type="radio" value="none">None</input>
+							<input name="device_sync" id="device_sync_sntp" type="radio" value="sntp">SNTPv4</input>
+							<input name="device_sync" id="device_sync_ptp" type="radio" value="ptp">PTPv2</input>
+						</td></tr>
+						<!--
+						<tr><td><b>Group 0</b></td><td>
+							<input id="device_group_0_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
+							<input id="device_group_0_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
+							<input id="device_group_0_north" type="checkbox" value="north">North</input>
+							<input id="device_group_0_south" type="checkbox" value="south">South</input>
+							<input id="device_group_0_scale" type="checkbox" value="scale">Scale</input>
+						</td></tr>
+						<tr><td><b>Group 1</b></td><td>
+							<input id="device_group_1_x0" type="number" min="0" max="1" value="0" step="0.001">Xmin</input>
+							<input id="device_group_1_x1" type="number" min="0" max="1" value="1" step="0.001">Xmax</input>
+							<input id="device_group_1_north" type="checkbox" value="north">North</input>
+							<input id="device_group_1_south" type="checkbox" value="south">South</input>
+							<input id="device_group_1_scale" type="checkbox" value="scale">Scale</input>
+						</td></tr>
+						-->
+						<tr><td></td><td><a href="#device_conf" id="device_conf">apply</a></td></tr>
 
-					<tr class="device_config"><td></td><td><a href="#" id="device_code">apply</a></td></tr>
-				</table>
+						<tr><td><b>Script</b></td><td><div id="editor"></div></td></tr>
+
+						<tr><td></td><td><a href="#device_code" id="device_code">apply</a></td></tr>
+					</table>
+				</div>
 			</div>
 		</div>
 
