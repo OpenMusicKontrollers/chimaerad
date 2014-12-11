@@ -1,5 +1,7 @@
 #include <chimaerad.h>
 
+#include <stdlib.h>
+
 #if !defined(__WINDOWS__)
 #	include <sys/mman.h>
 #endif
@@ -440,6 +442,28 @@ _eet_loader(lua_State *L)
 }
 */
 
+int
+_zip_loader(lua_State *L)
+{
+	chimaerad_host_t *host = lua_touserdata(L, lua_upvalueindex(1));
+	const char *module = luaL_checkstring(L, 1);
+
+	char key [256];
+	sprintf(key, "%s.lua", module);
+
+	size_t size;
+	char *chunk = host_zip_file(host, key, &size);
+	if(chunk)
+	{
+		printf("_zip_loader: %s %zu\n", key, size);
+		luaL_loadbuffer(L, chunk, size, module);
+		free(chunk);
+		return 1;
+	}
+
+	return 0;
+}
+
 static int
 _midi(lua_State *L)
 {
@@ -473,19 +497,17 @@ chimaerad_source_init(uv_loop_t *loop, chimaerad_source_t *source)
 	luaL_openlibs(source->L);
 
 	// overwrite loader functions with our own
-	/*
 	lua_getglobal(source->L, "package");
 	{
 		lua_newtable(source->L);
 		{
 			lua_pushlightuserdata(source->L, source->host);
-			lua_pushcclosure(source->L, _eet_loader, 1);
+			lua_pushcclosure(source->L, _zip_loader, 1);
 			lua_rawseti(source->L, -2, 1);
 		}
 		lua_setfield(source->L, -2, "loaders");
 	}
 	lua_pop(source->L, 1); // package
-	*/
 
 	lua_pushlightuserdata(source->L, source->host);
 	lua_pushcclosure(source->L, _midi, 1);

@@ -16,6 +16,11 @@
 #include <cJSON.h>
 #include <rtmidi_c.h>
 
+#ifdef __WINDOWS__
+#	define ZIP_EXTERN __declspec(dllexport) // needed for static linking with mingw-w64
+#endif
+#include <zip.h>
+
 typedef struct _chimaerad_source_t chimaerad_source_t;
 typedef struct _chimaerad_iface_t chimaerad_iface_t;
 typedef struct _chimaerad_host_t chimaerad_host_t;
@@ -105,11 +110,15 @@ struct _chimaerad_host_t {
 
 	// broadcast discover
 	osc_stream_t discover;
+
+	// libzip
+	struct zip *z;
 };
 
 int chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port);
 int chimaerad_host_deinit(chimaerad_host_t *host);
 chimaerad_source_t * host_find_source(chimaerad_host_t *host, const char *uid);
+char *host_zip_file(chimaerad_host_t *host, const char *path, size_t *size);
 
 void chimaerad_client_after_write(uv_write_t *req, int status);
 int chimaerad_client_dispatch_json(chimaerad_client_t *client, cJSON *query);

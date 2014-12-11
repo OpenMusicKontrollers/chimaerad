@@ -120,25 +120,25 @@ _on_connected(uv_stream_t *handle, int status)
 	}
 }
 
-static char *
-_read_file(const char *path, size_t *size)
+char *
+host_zip_file(chimaerad_host_t *host, const char *path, size_t *size)
 {
-	printf("path: %s\n", path);
+	struct zip_stat stat;
+	if(zip_stat(host->z, path, 0, &stat))
+		goto err;
+	size_t fsize = stat.size;
 
-	FILE *f = fopen(path, "rb");
+	struct zip_file *f = zip_fopen(host->z, path, 0);
 	if(!f)
 		goto err;
-	fseek(f, 0, SEEK_END);
-	size_t fsize = ftell(f);
-	fseek(f, 0, SEEK_SET);
 	
 	char *str = malloc(fsize + 1);
 	if(!str)
 		goto err;
 
-	if(fread(str, fsize, 1, f) != 1)
+	if(zip_fread(f, str, fsize) == -1)
 		goto err;
-	fclose(f);
+	zip_fclose(f);
 	str[fsize] = 0;
 
 	*size = fsize;
@@ -149,7 +149,7 @@ _read_file(const char *path, size_t *size)
 		if(str)
 			free(str);
 		if(f)
-			fclose(f);
+			zip_fclose(f);
 		return NULL;
 }
 
@@ -191,13 +191,12 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	else // !json
 	{
 		size_t size;
-		//client->chunk = eet_read(host->eet, path, &size);
 		if(!strcmp(path, "/"))
 		{
 			free(path);
 			path = strdup("/index.html");
 		}
-		client->chunk = _read_file(path+1, &size);
+		client->chunk = host_zip_file(host, path+1, &size);
 		uv_buf_t msg [3];
 
 		if(client->chunk)
@@ -293,6 +292,13 @@ int
 chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port)
 {
 	int err;
+
+	host->z = zip_open("app.zip", ZIP_CHECKCONS, &err);
+	if(!host->z)
+	{
+		fprintf(stderr, "zip_open: %i\n", err);
+		return -1;
+	}
 
 	_get_interfaces(host);
 
@@ -390,6 +396,8 @@ chimaerad_host_deinit(chimaerad_host_t *host)
 		free(ifa->name);
 		free(ifa);
 	}
+
+	zip_close(host->z);
 	
 	return 0;
 }

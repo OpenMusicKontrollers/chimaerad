@@ -16,9 +16,11 @@ include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
 
 set(LIBS -lm)
-if(WIN32)
-	set(LIBS ${LIBS} -lws2_32 -lpsapi -liphlpapi)
-endif()
+
+# libzip
+pkg_search_module(ZIP REQUIRED libzip>=0.11)
+include_directories(${ZIP_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${ZIP_LDFLAGS})
 
 # libuv
 pkg_search_module(UV REQUIRED libuv>=1.0.0)
@@ -26,7 +28,7 @@ include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
 # RtMidi
-option(USE_SYSTEM_RTMIDI "use System RtMidi" ON)
+option(USE_SYSTEM_RTMIDI "use System RtMidi" OFF)
 if(USE_SYSTEM_RTMIDI)
 	pkg_search_module(RTMIDI REQUIRED librtmidi>=2.1)
 	include_directories(${RTMIDI_INCLUDE_DIRS})
@@ -36,7 +38,7 @@ else() # use embedded rtmidi
 	include_directories(${PROJECT_SOURCE_DIR}/rtmidi)
 
 	if(WIN32)
-		# what?
+		target_compile_definitions(rtmidi PUBLIC -D__WINDOWS_MM__)
 	endif()
 
 	if(APPLE)
@@ -63,7 +65,7 @@ else() # use embedded rtmidi
 endif()
 
 # lua
-option(USE_LUAJIT "use LuaJIT" ON)
+option(USE_LUAJIT "use LuaJIT" OFF)
 if(USE_LUAJIT)
 	pkg_search_module(LUAJIT REQUIRED luajit>=2.0)
 	include_directories(${LUAJIT_INCLUDE_DIRS})
@@ -76,7 +78,9 @@ endif()
 
 if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
-	set(CMAKE_EXE_LINKER_FLAGS "-std=gnu99 -static -static-libgcc -static-libstdc++")
+	set(CMAKE_C_FLAGS "-std=gnu99")
+	set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
+	set(LIBS ${LIBS} -lwinmm -lws2_32 -lpsapi -liphlpapi)
 endif()
 
 # chimaerad
@@ -100,8 +104,42 @@ add_executable(chimaerad
 	rtmidi_c.cpp
 	http-parser/http_parser.c
 	tlsf-3.0/tlsf.c)
-target_link_libraries(chimaerad ${LIBS})
 if(NOT USE_SYSTEM_RTMIDI)
 	target_link_libraries(chimaerad rtmidi)
 endif()
+target_link_libraries(chimaerad ${LIBS})
 install(TARGETS chimaerad DESTINATION bin)
+
+find_program(ZIP_BIN NAMES zip)
+if(ZIP_BIN_NOTFOUND)
+  message(SEND_ERROR "zip not found")
+else()
+  message(STATUS "zip found: " ${ZIP_BIN})
+endif(ZIP_BIN_NOTFOUND)
+
+set(ZIP_SOURCES
+	${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf
+	${PROJECT_SOURCE_DIR}/GenBasB.ttf
+	${PROJECT_SOURCE_DIR}/GenBasBI.ttf
+	${PROJECT_SOURCE_DIR}/GenBasI.ttf
+	${PROJECT_SOURCE_DIR}/GenBasR.ttf
+	${PROJECT_SOURCE_DIR}/chimaerad.js
+	${PROJECT_SOURCE_DIR}/content.html
+	${PROJECT_SOURCE_DIR}/dummy.lua
+	${PROJECT_SOURCE_DIR}/favicon.png
+	${PROJECT_SOURCE_DIR}/index.html
+	${PROJECT_SOURCE_DIR}/jquery-1.11.1.min.js
+	${PROJECT_SOURCE_DIR}/logo.png
+	${PROJECT_SOURCE_DIR}/style.css
+	${PROJECT_SOURCE_DIR}/ace/ace.js
+	${PROJECT_SOURCE_DIR}/ace/mode-lua.js
+	${PROJECT_SOURCE_DIR}/ace/theme-clouds_midnight.js
+	${PROJECT_SOURCE_DIR}/ace/worker-lua.js)
+
+add_custom_command(
+	OUTPUT ${PROJECT_BINARY_DIR}/app.zip
+	COMMAND ${ZIP_BIN} ARGS -j ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
+	MAIN_DEPENDENCY
+		${ZIP_SOURCES})
+add_custom_target(THEME ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
+#install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${DEST})
