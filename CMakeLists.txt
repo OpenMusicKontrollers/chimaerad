@@ -42,7 +42,11 @@ else() # use embedded rtmidi
 	endif()
 
 	if(APPLE)
-		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__ -framework CoreMIDI -framework CoreAudio -framework CoreFoundation)
+		find_library(CORE_MIDI CoreMIDI)
+		find_library(CORE_FOUNDATION CoreFoundation)
+		find_library(CORE_AUDIO CoreAudio)
+		set(LIBS ${LIBS} ${CORE_MIDI} ${CORE_FOUNDATION} ${CORE_AUDIO})
+		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__)
 	endif()
 
 	if(UNIX) # for Apple and Linux
