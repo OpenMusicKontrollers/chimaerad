@@ -18,7 +18,7 @@ include_directories(${PROJECT_SOURCE_DIR}/inlist)
 set(LIBS -lm)
 
 # libzip
-pkg_search_module(ZIP REQUIRED libzip>=0.11)
+pkg_search_module(ZIP REQUIRED libzip>=0.10)
 include_directories(${ZIP_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${ZIP_LDFLAGS})
 
