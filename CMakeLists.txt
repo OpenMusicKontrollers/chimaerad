@@ -41,14 +41,6 @@ else() # use embedded rtmidi
 		target_compile_definitions(rtmidi PUBLIC -D__WINDOWS_MM__)
 	endif()
 
-	if(APPLE)
-		find_library(CORE_MIDI CoreMIDI)
-		find_library(CORE_FOUNDATION CoreFoundation)
-		find_library(CORE_AUDIO CoreAudio)
-		set(LIBS ${LIBS} ${CORE_MIDI} ${CORE_FOUNDATION} ${CORE_AUDIO})
-		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__)
-	endif()
-
 	if(UNIX) # for Apple and Linux
 		pkg_search_module(JACK OPTIONAL jack)
 		if(${JACK_FOUND})
@@ -56,6 +48,14 @@ else() # use embedded rtmidi
 			set(LIBS ${LIBS} ${JACK_LDFLAGS})
 			target_compile_definitions(rtmidi PUBLIC -D__UNIX_JACK__)
 		endif()
+	endif()
+
+	if(APPLE)
+		find_library(CORE_MIDI CoreMIDI)
+		find_library(CORE_FOUNDATION CoreFoundation)
+		find_library(CORE_AUDIO CoreAudio)
+		set(LIBS ${LIBS} ${CORE_MIDI} ${CORE_FOUNDATION} ${CORE_AUDIO})
+		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__)
 	endif()
 
 	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
