@@ -27,6 +27,9 @@ pkg_search_module(UV REQUIRED libuv>=1.0.0)
 include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
+# JACK
+option(USE_JACK "use JACK" OFF)
+
 # RtMidi
 option(USE_SYSTEM_RTMIDI "use System RtMidi" OFF)
 if(USE_SYSTEM_RTMIDI)
@@ -41,7 +44,7 @@ else() # use embedded rtmidi
 		target_compile_definitions(rtmidi PUBLIC -D__WINDOWS_MM__)
 	endif()
 
-	if(UNIX) # for Apple and Linux
+	if(${USE_JACK} AND UNIX) # for Apple and Linux
 		pkg_search_module(JACK OPTIONAL jack)
 		if(${JACK_FOUND})
 			include_directories(${JACK_INCLUDE_DIRS})
