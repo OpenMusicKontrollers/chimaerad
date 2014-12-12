@@ -123,10 +123,9 @@ endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
 	${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf
-	${PROJECT_SOURCE_DIR}/GenBasB.ttf
-	${PROJECT_SOURCE_DIR}/GenBasBI.ttf
-	${PROJECT_SOURCE_DIR}/GenBasI.ttf
-	${PROJECT_SOURCE_DIR}/GenBasR.ttf
+	${PROJECT_SOURCE_DIR}/Berenika-Bold.woff
+	${PROJECT_SOURCE_DIR}/Abel.woff
+	${PROJECT_SOURCE_DIR}/Abel.woff2
 	${PROJECT_SOURCE_DIR}/chimaerad.js
 	${PROJECT_SOURCE_DIR}/content.html
 	${PROJECT_SOURCE_DIR}/dummy.lua

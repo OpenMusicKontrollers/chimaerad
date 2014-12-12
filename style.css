@@ -1,40 +1,21 @@
 @font-face {
 	font-family: 'BerenikaBold';
-  src: url('/Berenika-Bold.ttf') format('truetype');
+  src:	url('/Berenika-Bold.woff') format('woff'),
+				url('/Berenika-Bold.ttf') format('truetype');
 	font-weight: bold;
 	font-style: normal;
 }
 
 @font-face {
-	font-family: 'Gentium';
-  src: url('/GenBasR.ttf') format('truetype');
+	font-family: 'Abel';
+	src:	url('/Abel.woff2') format('woff2'),
+				url('/Abel.woff') format('woff');
 	font-weight: normal;
 	font-style: normal;
-}
-
-@font-face {
-	font-family: 'Gentium';
-  src: url('/GenBasI.ttf') format('truetype');
-	font-weight: normal;
-	font-style: oblique;
-}
-
-@font-face {
-	font-family: 'Gentium';
-  src: url('/GenBasB.ttf') format('truetype');
-	font-weight: bold;
-	font-style: normal;
-}
-
-@font-face {
-	font-family: 'Gentium';
-  src: url('/GenBasBI.ttf') format('truetype');
-	font-weight: bold;
-	font-style: oblique;
 }
 
 body {
-	font-family: 'Gentium', serif;
+	font-family: 'Abel', sans-serif;
 	font-size:large;
 	font-weight:normal;
 	font-style:normal;
@@ -80,7 +61,7 @@ a.header {
 	margin-left:0.2em;
 	margin-right:0.2em;
 	font-size:14px;
-  font-family:Berenika, verdana, arial, helvetica, sans-serif;
+  font-family:'BerenikaBold', sans-serif;
 	color:#fff;
 	background-color:#000;
 }
