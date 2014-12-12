@@ -10,14 +10,15 @@ before_install:
  - ifmac () { if [[ $TRAVIS_OS_NAME == osx ]]; then eval $@; fi; }
  - iflin () { if [[ $TRAVIS_OS_NAME == linux ]]; then eval $@; fi; }
  - ifmac brew update
- - ifmac brew install cmake jack luajit lua52 libzip libuv
+ - ifmac brew install jack luajit lua libzip
+ - ifmac brew install --devel libuv
  - iflin wget https://github.com/joyent/libuv/archive/v1.0.0.tar.gz
  - iflin tar xzf v1.0.0.tar.gz
  - iflin sudo add-apt-repository -y ppa:andykimpe/cmake
  - iflin sudo apt-get -q update
  - iflin sudo apt-get install cmake=2.8.12.2-3 
 install:
- - iflin pushd libuv-1.0.0 && sh autogen.sh && ./configure --prefix=/usr && make && sudo make install && popd
+ - iflin pushd libuv-1.0.0 && iflin sh autogen.sh && iflin ./configure --prefix=/usr && iflin make && iflin sudo make install && iflin popd
  - iflin sudo apt-get install -y libjack-dev libasound2-dev libluajit-5.1-dev libzip-dev zip
 before_script:
  - mkdir build && pushd build && cmake -DCMAKE_C_FLAGS="-std=gnu99" -DUSE_SYSTEM_RTMIDI=0 -DUSE_LUAJIT=1  .. && popd
