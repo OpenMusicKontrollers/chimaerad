@@ -134,7 +134,7 @@ set(ZIP_SOURCES
 	${PROJECT_SOURCE_DIR}/dummy.lua
 	${PROJECT_SOURCE_DIR}/favicon.png
 	${PROJECT_SOURCE_DIR}/index.html
-	${PROJECT_SOURCE_DIR}/jquery-1.11.1.min.js
+	${PROJECT_SOURCE_DIR}/jquery-1.11.2.min.js
 	${PROJECT_SOURCE_DIR}/logo.png
 	${PROJECT_SOURCE_DIR}/style.css
 	${PROJECT_SOURCE_DIR}/ace/ace.js
@@ -147,5 +147,5 @@ add_custom_command(
 	COMMAND ${ZIP_BIN} ARGS -j ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
 	MAIN_DEPENDENCY
 		${ZIP_SOURCES})
-add_custom_target(THEME ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
+add_custom_target(CONTAINER ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
 #install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${DEST})
