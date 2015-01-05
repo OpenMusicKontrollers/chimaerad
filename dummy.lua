@@ -1,3 +1,20 @@
+--[[
+ * Copyright (c) 2015 Hanspeter Portner (dev@open-music-kontrollers.ch)
+ *
+ * This is free software: you can redistribute it and/or modify
+ * it under the terms of the Artistic License 2.0 as published by
+ * The Perl Foundation.
+ *
+ * This source is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * Artistic License 2.0 for more details.
+ *
+ * You should have received a copy of the Artistic License 2.0
+ * along the source as a COPYING file. If not, obtain it from
+ * http://www.perlfoundation.org/artistic_license_2_0.
+--]]
+
 bit32 = bit32 or bit
 
 gids = {}
@@ -43,7 +60,7 @@ function off(time, sid)
 	local gid = gids[sid]
 	local key = keys[sid]
 
-	midi(
+	midi( -- note off
 		bit32.bor(0x80, gid),
 		key,
 		0x7f)
@@ -61,11 +78,11 @@ function set(time, sid, x, z)
 	local eff_msb = bit32.rshift(eff, 7)
 	local eff_lsb = bit32.band(eff, 0x7f)
 
-	midi(
+	midi( -- pitch bend
 		bit32.bor(0xe0, gid),
 		bit32.band(bend, 0x7f),
 		bit32.rshift(bend, 7))
-	midi(
+	midi( -- note pressure
 		bit32.bor(0xa0, gid),
 		key,
 		eff_msb)

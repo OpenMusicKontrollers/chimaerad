@@ -1,3 +1,20 @@
+/*
+ * Copyright (c) 2015 Hanspeter Portner (dev@open-music-kontrollers.ch)
+ *
+ * This is free software: you can redistribute it and/or modify
+ * it under the terms of the Artistic License 2.0 as published by
+ * The Perl Foundation.
+ *
+ * This source is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * Artistic License 2.0 for more details.
+ *
+ * You should have received a copy of the Artistic License 2.0
+ * along the source as a COPYING file. If not, obtain it from
+ * http://www.perlfoundation.org/artistic_license_2_0.
+ */
+
 #include <chimaerad.h>
 
 #include <stdlib.h>
@@ -218,11 +235,18 @@ _on_osc_data_frm(osc_time_t time, const char *path, const char *fmt, osc_data_t 
 	osc_data_t *ptr = arg;
 	uint32_t fid;
 	uint64_t tt;
+	uint32_t dim;
+	const char *src;
 	
 	ptr = osc_get_int32(ptr, (int32_t *)&fid);
 	ptr = osc_get_timetag(ptr, &tt);
+	ptr = osc_get_int32(ptr, (int32_t *)&dim);
+	ptr = osc_get_string(ptr, &src);
 
-	printf("frm: %u %16lx\n", fid, tt);
+	uint16_t xdim = dim >> 16;
+	uint16_t zdim = dim & 0xffff;
+
+	printf("frm: %u %16lx %hu %hu %s\n", fid, tt, xdim, zdim, src);
 
 	//TODO
 	return 1;
@@ -278,7 +302,7 @@ static const osc_method_t on_osc_data [] = {
 	{"/set", "iff", _on_osc_data_set},
 	{"/idle", "", _on_osc_data_idle},
 
-	{"/tuio2/frm", "it", _on_osc_data_frm},
+	{"/tuio2/frm", "itis", _on_osc_data_frm},
 	{"/tuio2/tok", "iiifff", _on_osc_data_tok},
 	{"/tuio2/alv", NULL, _on_osc_data_alv},
 
@@ -313,7 +337,8 @@ _on_osc_config_stream_resolve(osc_time_t time, const char *path, const char *fmt
 		(source->iface->ip4 >> 0) & 0xff);
 
 	ptr = osc_set_vararg(ptr, end, "/engines/address", "is", 13, dest);
-	osc_stream_send(&source->config, buf, ptr-buf);
+	if(ptr)
+		osc_stream_send(&source->config, buf, ptr-buf);
 
 	return 1;
 }
@@ -364,8 +389,8 @@ _on_osc_config_success(osc_time_t time, const char *path, const char *fmt, osc_d
 			ptr = osc_set_bundle_item(ptr, end, "/engines/enabled", "ii", 18, 1);
 		}
 		ptr = osc_end_bundle(ptr, end, bndl);
-
-		osc_stream_send(&source->config, buf, ptr - buf);
+		if(ptr)
+			osc_stream_send(&source->config, buf, ptr - buf);
 	}
 
 	return 1;
@@ -557,7 +582,8 @@ chimaerad_source_deinit(chimaerad_source_t *source)
 		ptr = osc_set_bundle_item(ptr, end, "/engines/enabled", "ii", 12, 0);
 		ptr = osc_set_bundle_item(ptr, end, "/engines/reset", "i", 13);
 	}
-	osc_stream_send(&source->config, buf, ptr - buf);
+	if(ptr)
+		osc_stream_send(&source->config, buf, ptr - buf);
 
 	osc_stream_deinit(&source->config);
 
