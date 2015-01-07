@@ -21,6 +21,27 @@
 
 #if !defined(__WINDOWS__)
 #	include <sys/mman.h>
+#else
+#	include <avrt.h>
+enum AVRT_CHARACTERISTIC {
+	AVRT_CHARACTERISTIC_AUDIO,
+	AVRT_CHARACTERISTIC_CAPTURE,
+	AVRT_CHARACTERISTIC_DISTRIBUTION,
+	AVRT_CHARACTERISTIC_GAMES,
+	AVRT_CHARACTERISTIC_PLAYBACK,
+	AVRT_CHARACTERISTIC_PRO_AUDIO,
+	AVRT_CHARACTERISTIC_WINDOW_MANAGER
+};
+
+static const char *avrt_thread_characteristics [] = {
+	[AVRT_CHARACTERISTIC_AUDIO]						= "Audio",
+	[AVRT_CHARACTERISTIC_CAPTURE]					= "Capture",
+	[AVRT_CHARACTERISTIC_DISTRIBUTION]		= "Distribution",
+	[AVRT_CHARACTERISTIC_GAMES]						= "Games",
+	[AVRT_CHARACTERISTIC_PLAYBACK]				= "Playback",
+	[AVRT_CHARACTERISTIC_PRO_AUDIO]				= "Pro Audio",
+	[AVRT_CHARACTERISTIC_WINDOW_MANAGER]	= "Window Manager"
+};
 #endif
 
 #define AREA_SIZE 0x1000000UL // 16MB
@@ -86,11 +107,23 @@ _thread(void *arg)
 {
 	chimaerad_source_t *source = arg;
 
+//FIXME implement OSX realtime scheduling
 #if !defined(__WINDOWS__)
 	struct sched_param schedp = {
-		.sched_priority = 50
+		.sched_priority = 50 //TODO make this configurable
 	};
 	pthread_setschedparam(source->thread, SCHED_RR, &schedp);
+#else
+	int mcss_sched_characteristic = AVRT_CHARACTERISTIC_PRO_AUDIO;
+	int mcss_sched_priority = AVRT_PRIORITY_CRITICAL;
+
+	// Multimedia Class Scheduler Service
+	DWORD word = 0;
+	HANDLE task = AvSetMmThreadCharacteristics(avrt_thread_characteristics[mcss_sched_characteristic], &word);
+	if(!task)
+		fprintf(stderr, "AvSetMmThreadCharacteristics error: %d\n", GetLastError());
+	else if(!AvSetMmThreadPriority(task, mcss_sched_priority))
+		fprintf(stderr, "AvSetMmThreadPriority error: %d\n", GetLastError());
 #endif
 
 	uv_run(&source->loop, UV_RUN_DEFAULT);

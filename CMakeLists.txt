@@ -87,7 +87,7 @@ if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
 	set(CMAKE_C_FLAGS "-std=gnu99")
 	set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
-	set(LIBS ${LIBS} -lwinmm -lws2_32 -lpsapi -liphlpapi)
+	set(LIBS ${LIBS} -lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt)
 endif()
 
 # chimaerad
@@ -125,6 +125,7 @@ else()
 endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
+	${PROJECT_SOURCE_DIR}/COPYING
 	${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf
 	${PROJECT_SOURCE_DIR}/Berenika-Bold.woff
 	${PROJECT_SOURCE_DIR}/Abel.woff

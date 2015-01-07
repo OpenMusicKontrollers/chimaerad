@@ -44,7 +44,7 @@ rtmidic_has_compiled_api(RtMidiC_API api)
 	std::vector<RtMidi::Api> apis;
 	RtMidi::getCompiledApi(apis);
 
-	for(int i=0; i<apis.size(); i++)
+	for(unsigned int i=0; i<apis.size(); i++)
 		switch(apis[i])
 		{
 			case RtMidi::UNSPECIFIED:
@@ -84,7 +84,7 @@ rtmidic_in_new(RtMidiC_API api, const char *client_name)
 {
 	RtMidiC_In *dev = (RtMidiC_In *)calloc(1, sizeof(RtMidiC_In));
 
-	RtMidi::Api _api;
+	RtMidi::Api _api = RtMidi::UNSPECIFIED;
 
 	switch(api)
 	{
@@ -107,7 +107,6 @@ rtmidic_in_new(RtMidiC_API api, const char *client_name)
 			_api = RtMidi::RTMIDI_DUMMY;
 			break;
 	}
-
 
 	try
 	{
@@ -160,14 +159,15 @@ rtmidic_in_api_get(RtMidiC_In* dev)
 				return RTMIDIC_API_WINDOWS_MM;
 			case RtMidi::RTMIDI_DUMMY:
 				return RTMIDIC_API_RTMIDI_DUMMY;
+			default:
+				return RTMIDIC_API_UNSPECIFIED;
 		}
 	}
 	catch(RtMidiError &error)
 	{
 		error.printMessage();
-		return (RtMidiC_API)100; //FIXME
+		return RTMIDIC_API_UNSPECIFIED;
 	}
-
 }
 
 unsigned int
@@ -249,7 +249,7 @@ static void
 callbackWrapper(double timestamp, std::vector<uint8_t> *message, void *data)
 {
 	uint8_t msg[4];
-	for (int i = 0; i < message->size(); i++)
+	for (unsigned int i = 0; i < message->size(); i++)
 		msg[i] = message->at(i);
 	RtMidiC_Callback *ptr = (RtMidiC_Callback *)data;
 	RtMidiC_Callback cb = *ptr;
@@ -294,7 +294,7 @@ rtmidic_out_new(RtMidiC_API api, const char *client_name)
 {
 	RtMidiC_Out *dev = (RtMidiC_Out *)calloc(1, sizeof(RtMidiC_Out));
 
-	RtMidi::Api _api;
+	RtMidi::Api _api = RtMidi::UNSPECIFIED;
 
 	switch(api)
 	{
@@ -369,12 +369,14 @@ rtmidic_out_api_get(RtMidiC_Out* dev)
 				return RTMIDIC_API_WINDOWS_MM;
 			case RtMidi::RTMIDI_DUMMY:
 				return RTMIDIC_API_RTMIDI_DUMMY;
+			default:
+				return RTMIDIC_API_UNSPECIFIED;
 		}
 	}
 	catch(RtMidiError &error)
 	{
 		error.printMessage();
-		return (RtMidiC_API)100; //FIXME
+		return RTMIDIC_API_UNSPECIFIED;
 	}
 }
 
