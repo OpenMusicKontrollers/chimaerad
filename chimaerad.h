@@ -132,6 +132,11 @@ struct _chimaerad_host_t {
 	struct zip *z;
 };
 
+int luaopen_json(lua_State *L);
+int luaopen_osc(lua_State *L);
+int luaopen_http(lua_State *L);
+int luaopen_zip(lua_State *L);
+
 int chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port);
 int chimaerad_host_deinit(chimaerad_host_t *host);
 chimaerad_source_t * host_find_source(chimaerad_host_t *host, const char *uid);

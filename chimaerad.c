@@ -22,6 +22,7 @@
 int
 main(int argc, char **argv)
 {
+	/*
 	int r;
 	uv_loop_t *loop;
 	static chimaerad_host_t host;
@@ -35,6 +36,23 @@ main(int argc, char **argv)
 
 	if( (r = chimaerad_host_deinit(&host)) )
 		return r;
+	*/
+
+	uv_loop_t *loop = uv_default_loop();
+	lua_State *L = luaL_newstate();
+
+	luaL_openlibs(L);
+	luaopen_json(L);
+	luaopen_osc(L);
+	luaopen_http(L);
+	luaopen_zip(L);
+
+	if(luaL_dofile(L, argv[1]))
+		fprintf(stderr, "main: %s\n", lua_tostring(L, -1));
+
+	uv_run(loop, UV_RUN_DEFAULT);
+
+	lua_close(L);
 
 	return 0;
 }

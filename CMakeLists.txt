@@ -100,8 +100,10 @@ add_executable(chimaerad
 	libosc_stream/osc_stream_slip.c
 	libosc_stream/osc_stream_tcp.c
 	libosc_stream/osc_stream_udp.c
+	mod_osc.c
 # cJSON
 	cJSON/cJSON.c
+	mod_json.c
 # chimaerad
 	chimaerad.c
 	chimaerad_host.c
@@ -109,7 +111,12 @@ add_executable(chimaerad
 	chimaerad_client.c
 	chimaerad_source.c
 	rtmidi_c.cpp
+# http
 	http-parser/http_parser.c
+	mod_http.c
+# zip
+	mod_zip.c
+# tlsf
 	tlsf-3.0/tlsf.c)
 if(NOT USE_SYSTEM_RTMIDI)
 	target_link_libraries(chimaerad rtmidi)

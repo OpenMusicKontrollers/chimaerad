@@ -15,6 +15,9 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
  */
 
+#ifndef _INLIST_H
+#define _INLIST_H
+
 typedef struct _Inlist Inlist;
 
 struct _Inlist
@@ -164,3 +167,5 @@ inlist_count(const Inlist *list)
 
 #define INLIST_FREE(list, it)				\
   for (it = (__typeof__(it)) list; list; it = (__typeof__(it)) list)
+
+#endif
