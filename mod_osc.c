@@ -332,6 +332,8 @@ _message(osc_data_t *buf, size_t len, void *data)
 	}
 	else
 		lua_pop(L, 1);
+		
+	lua_gc(L, LUA_GCSTEP, 0);
 }
 
 static const osc_unroll_inject_t inject = {

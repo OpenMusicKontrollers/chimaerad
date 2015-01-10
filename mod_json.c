@@ -28,10 +28,10 @@
 #include <cJSON.h>
 
 // forward declaration
-static cJSON * _serialize_item(lua_State *L, int idx);
+static cJSON * _encode_item(lua_State *L, int idx);
 
 static cJSON *
-_serialize_array(lua_State *L, int idx)
+_encode_array(lua_State *L, int idx)
 {
 	cJSON *arr = cJSON_CreateArray();
 	idx = idx < 0 ? idx-1 : idx;
@@ -40,7 +40,7 @@ _serialize_array(lua_State *L, int idx)
 	while(lua_next(L, idx))
 	{
 		int pos = luaL_checkint(L, -2);
-		cJSON *item = _serialize_item(L, -1);
+		cJSON *item = _encode_item(L, -1);
 		if(item)
 			cJSON_AddItemToArray(arr, item);
 
@@ -51,7 +51,7 @@ _serialize_array(lua_State *L, int idx)
 }
 
 static cJSON *
-_serialize_object(lua_State *L, int idx)
+_encode_object(lua_State *L, int idx)
 {
 	cJSON *obj = cJSON_CreateObject();
 	idx = idx < 0 ? idx-1 : idx;
@@ -60,7 +60,7 @@ _serialize_object(lua_State *L, int idx)
 	while(lua_next(L, idx))
 	{
 		const char *name = luaL_checkstring(L, -2);
-		cJSON *item = _serialize_item(L, -1);
+		cJSON *item = _encode_item(L, -1);
 		if(item)
 			cJSON_AddItemToObject(obj, name, item);
 
@@ -71,7 +71,7 @@ _serialize_object(lua_State *L, int idx)
 }
 
 static cJSON *
-_serialize_item(lua_State *L, int idx)
+_encode_item(lua_State *L, int idx)
 {
 	switch(lua_type(L, idx))
 	{
@@ -85,22 +85,22 @@ _serialize_item(lua_State *L, int idx)
 			return cJSON_CreateString(luaL_checkstring(L, idx));
 		case LUA_TTABLE:
 			if(!lua_objlen(L, idx))
-				return _serialize_object(L, idx);
+				return _encode_object(L, idx);
 			else
-				return _serialize_array(L, idx);
+				return _encode_array(L, idx);
 		default:
-			fprintf(stderr, "cannot serialize type\n");
+			fprintf(stderr, "cannot encode type\n");
 			return NULL;
 	}
 }
 
 // Lua -> JSON
 static int
-_serialize(lua_State *L)
+_encode(lua_State *L)
 {
 	if(lua_istable(L, 1) && !lua_objlen(L, 1))
 	{
-		cJSON *root = _serialize_object(L, 1);
+		cJSON *root = _encode_object(L, 1);
 		char *json = cJSON_PrintUnformatted(root);
 		lua_pushstring(L, json);
 		free(json);
@@ -113,10 +113,10 @@ _serialize(lua_State *L)
 }
 
 // forward declaration
-static void _deserialize_item(lua_State *L, cJSON *item);
+static void _decode_item(lua_State *L, cJSON *item);
 
 static void
-_deserialize_array(lua_State *L, cJSON *arr)
+_decode_array(lua_State *L, cJSON *arr)
 {
 	int n = cJSON_GetArraySize(arr);
 	lua_createtable(L, n, 0);
@@ -124,26 +124,26 @@ _deserialize_array(lua_State *L, cJSON *arr)
 	int i = 0;
 	for(cJSON *item = arr->child; item; item = item->next)
 	{
-		_deserialize_item(L, item);
+		_decode_item(L, item);
 		lua_rawseti(L, -2, ++i);
 	}
 }
 
 static void
-_deserialize_object(lua_State *L, cJSON *obj)
+_decode_object(lua_State *L, cJSON *obj)
 {
 	int n = cJSON_GetArraySize(obj);
 	lua_createtable(L, 0, n);
 
 	for(cJSON *item = obj->child; item; item = item->next)
 	{
-		_deserialize_item(L, item);
+		_decode_item(L, item);
 		lua_setfield(L, -2, item->string);
 	}
 }
 
 static void
-_deserialize_item(lua_State *L, cJSON *item)
+_decode_item(lua_State *L, cJSON *item)
 {
 	switch(item->type)
 	{
@@ -163,30 +163,30 @@ _deserialize_item(lua_State *L, cJSON *item)
 			lua_pushstring(L, item->valuestring);
 			break;
 		case cJSON_Array:
-			_deserialize_array(L, item);
+			_decode_array(L, item);
 			break;
 		case cJSON_Object:
-			_deserialize_object(L, item);
+			_decode_object(L, item);
 			break;
 	}
 }
 
 // JSON -> Lua
 static int
-_deserialize(lua_State *L)
+_decode(lua_State *L)
 {
 	const char *root_str = luaL_checkstring(L, 1);
 
 	cJSON *root = cJSON_Parse(root_str);
-	_deserialize_object(L, root);
+	_decode_object(L, root);
 	cJSON_Delete(root);
 
 	return 1;
 }
 
 static const luaL_Reg ljson [] = {
-	{"serialize", _serialize},
-	{"deserialize", _deserialize},
+	{"encode", _encode},
+	{"decode", _decode},
 	{NULL, NULL}
 };
 

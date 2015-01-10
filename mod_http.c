@@ -139,6 +139,8 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	}
 	else
 		lua_pop(L, 1);
+		
+	lua_gc(L, LUA_GCSTEP, 0);
 
 	return 0;
 }

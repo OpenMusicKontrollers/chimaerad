@@ -15,23 +15,25 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
 --]]
 
-o = {
-	hello = 'world'
-}
+bit32 = bit32 or bit
 
-s = JSON.serialize(o)
-print(s)
+id = coroutine.wrap(function()
+	local val = math.random(1024)
+	while true do
+		coroutine.yield(val)
+		val = val + 1
+	end
+end)
 
-t = JSON.deserialize(s)
-print(o.hello == t.hello)
-
-resolver = nil
 resolver = OSC.new('osc.udp4://255.255.255.255:4444', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
 
 	local methods = {
 		['/stream/resolve'] = function(...)
-			resolver(0, '/chimaera/discover', 'i', 13)	
+			resolver(0, '/chimaera/discover', 'i', id())	
+		end,
+		['/stream/timeout'] = function(...)
+			resolver = nil
 		end,
 
 		['/success'] = function(id, dest, ...)
@@ -43,25 +45,41 @@ resolver = OSC.new('osc.udp4://255.255.255.255:4444', function(time, path, fmt, 
 	if(meth) then meth(time, ...) end
 end)
 
-sender = nil
 sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
 
+	local introspect = {}
+
 	local methods = {
 		['/stream/resolve'] = function(...)
-			sender(0, '/engines/enabled', 'ii', 13, 0)
-			sender(0, '/engines/server', 'ii', 13, 0)
-			sender(0, '/engines/mode', 'is', 13, 'osc.tcp')
-			sender(0, '/engines/enabled', 'ii', 13, 1)
+			sender(0, '/engines/enabled', 'ii', id(), 0)
+			sender(0, '/engines/server', 'ii', id(), 0)
+			sender(0, '/engines/mode', 'is', id(), 'osc.tcp')
+			sender(0, '/engines/enabled', 'ii', id(), 1)
 
-			sender(0, '/engines/reset', 'i', 13)
-			sender(0, '/engines/dummy/enabled', 'ii', 13, 1)
-			sender(0, '/engines/dummy/redundancy', 'ii', 13, 0)
-			sender(0, '/engines/dummy/derivatives', 'ii', 13, 1)
+			sender(0, '/engines/reset', 'i', id())
+			sender(0, '/engines/dummy/enabled', 'ii', id(), 1)
+			sender(0, '/engines/dummy/redundancy', 'ii', id(), 0)
+			sender(0, '/engines/dummy/derivatives', 'ii', id(), 0)
+
+			sender(0, '/!', 'i', id())
+		end,
+		['/stream/timeout'] = function(...)
+			sender = nil
 		end,
 
-		['/success'] = function(id, dest, ...)
-			print('success', id, dest)
+		['/success'] = function(time, uuid, dest, ...)
+			print('success', uuid, dest)
+
+			if(dest:sub(-1) == '!') then
+				local o = JSON.decode(...)
+				introspect[o.path] = o
+				if(o.type == 'node') then
+					for _, v in ipairs(o.items) do
+						sender(0, o.path .. v .. '!', 'i', id())
+					end
+				end
+			end
 		end
 	}
 
@@ -69,7 +87,16 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 	if(meth) then meth(time, ...) end
 end)
 
-responder = nil
+midi = RTMIDI.new('UNIX_JACK')
+--midi = RTMIDI.new('LINUX_ALSA')
+midi:open_virtual_port()
+--mid:close_port()
+
+local gids = {}
+local keys = {}
+local n = 160/3
+local control = 0x07 -- volume
+
 responder = OSC.new('osc.tcp4://:3333', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
 
@@ -77,17 +104,81 @@ responder = OSC.new('osc.tcp4://:3333', function(time, path, fmt, ...)
 		['/stream/resolve'] = function(...)
 			--
 		end,
-
-		['/on'] = function(time, sid, gid, pid, x, z, X, Z)
-			--
+		['/stream/timeout'] = function(...)
+			responder = nil
 		end,
 
-		['/set'] = function(time, sid, x, z, X, Z)
-			--
+		['/on'] = function(time, sid, gid, pid, x, z)
+			local X = x*n + 23.166
+			local key = math.floor(X)
+			local bend = (X-key)/n*0x2000 + 0x1fff
+			local eff = z*0x3fff
+			local eff_msb = bit32.rshift(eff, 7)
+			local eff_lsb = bit32.band(eff, 0x7f)
+
+			midi( -- note on
+				bit32.bor(0x90, gid),
+				key,
+				0x7f)
+			midi( -- pitch bend
+				bit32.bor(0xe0, gid),
+				bit32.band(bend, 0x7f),
+				bit32.rshift(bend, 7))
+			midi( -- note pressure
+				bit32.bor(0xa0, gid),
+				key,
+				eff_msb)
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				bit32.bor(0x20, control),
+				eff_lsb)
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				control,
+				eff_msb)
+			
+			gids[sid] = gid
+			keys[sid] = key
 		end,
 
 		['/off'] = function(time, sid)
-			--
+			local gid = gids[sid]
+			local key = keys[sid]
+
+			midi( -- note off
+				bit32.bor(0x80, gid),
+				key,
+				0x7f)
+
+			gids[sid] = nil
+			keys[sid] = nil
+		end,
+
+		['/set'] = function(time, sid, x, z)
+			local X = x*n + 23.166
+			local gid = gids[sid]
+			local key = keys[sid]
+			local bend = (X-key)/n*0x2000 + 0x1fff
+			local eff = z*0x3fff
+			local eff_msb = bit32.rshift(eff, 7)
+			local eff_lsb = bit32.band(eff, 0x7f)
+
+			midi( -- pitch bend
+				bit32.bor(0xe0, gid),
+				bit32.band(bend, 0x7f),
+				bit32.rshift(bend, 7))
+			midi( -- note pressure
+				bit32.bor(0xa0, gid),
+				key,
+				eff_msb)
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				bit32.bor(0x20, control),
+				eff_lsb)
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				control,
+				eff_msb)
 		end,
 
 		['/idle'] = function(time)
@@ -100,7 +191,6 @@ responder = OSC.new('osc.tcp4://:3333', function(time, path, fmt, ...)
 end)
 
 zip = ZIP.new('app.zip')
-print(zip('COPYING'))
 
 code = {
 	[200] = 'HTTP/1.1 200 OK\r\n',
@@ -120,8 +210,6 @@ setmetatable(content_type, {
 	end})
 
 http = HTTP.new(9000, function(url)
-	print(url)
-
 	if(url:find('/%?')) then
 		return code[200] .. content_type['json'] .. '{"success":false}'
 	else
@@ -132,7 +220,6 @@ http = HTTP.new(9000, function(url)
 		local index = url:find('%.[^%.]*$')
 		local file = url:sub(2, index-1)
 		local suffix = url:sub(index+1)
-		print(file, suffix)
 
 		local chunk = zip(file .. '.' .. suffix)
 		if(chunk) then

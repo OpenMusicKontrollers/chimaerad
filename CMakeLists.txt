@@ -106,11 +106,13 @@ add_executable(chimaerad
 	mod_json.c
 # chimaerad
 	chimaerad.c
-	chimaerad_host.c
-	chimaerad_discover.c
-	chimaerad_client.c
-	chimaerad_source.c
-	rtmidi_c.cpp
+	#chimaerad_host.c
+	#chimaerad_discover.c
+	#chimaerad_client.c
+	#chimaerad_source.c
+	#rtmidi_c.cpp
+# rtmidi
+	mod_rtmidi.cpp
 # http
 	http-parser/http_parser.c
 	mod_http.c
