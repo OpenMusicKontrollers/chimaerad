@@ -21,16 +21,19 @@
 
 #include <uv.h>
 
+#include <portable_endian.h>
+
 static void
 ip2strCIDR(uint32_t ip32, uint8_t mask, char *str)
 {
-	uint8_t ip [4];
-	ip[0] = (ip32 >> 24) & 0xff;
-	ip[1] = (ip32 >> 16) & 0xff;
-	ip[2] = (ip32 >> 8) & 0xff;
-	ip[3] = (ip32 >> 0) & 0xff;
+	union {
+		uint32_t u32;
+		uint8_t u8 [4];
+	} ip;
+
+	ip.u32 = htobe32(ip32);
 	sprintf(str, "%hhu.%hhu.%hhu.%hhu/%hhu",
-		ip[0], ip[1], ip[2], ip[3], mask);
+		ip.u8[0], ip.u8[1], ip.u8[2], ip.u8[3], mask);
 }
 
 static uint8_t

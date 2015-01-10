@@ -99,7 +99,7 @@ _out_ports(lua_State *L)
 		unsigned int count = mod_rtmidi->io->getPortCount();
 
 		lua_createtable(L, count, 0);
-		for(int i=0; i<count; i++)
+		for(unsigned int i=0; i<count; i++)
 		{
 			const char *name = mod_rtmidi->io->getPortName(i).c_str();
 			lua_pushstring(L, name);
