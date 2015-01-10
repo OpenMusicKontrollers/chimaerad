@@ -90,34 +90,21 @@ _out_close_port(lua_State *L)
 }
 
 static int
-_out_port_count(lua_State *L)
+_out_ports(lua_State *L)
 {
 	mod_rtmidi_out_t *mod_rtmidi = (mod_rtmidi_out_t *)luaL_checkudata(L, 1, "mod_rtmidi_out_t");
 
   try
 	{
 		unsigned int count = mod_rtmidi->io->getPortCount();
-		lua_pushnumber(L, count);
-	}
-	catch(RtMidiError &error)
-	{
-		error.printMessage();
-		lua_pushnil(L);
-	}
 
-	return 1;
-}
-
-static int
-_out_port_name(lua_State *L)
-{
-	mod_rtmidi_out_t *mod_rtmidi = (mod_rtmidi_out_t *)luaL_checkudata(L, 1, "mod_rtmidi_out_t");
-
-	unsigned int port = luaL_optint(L, 2, 0);
-  try
-	{
-		const char *name = mod_rtmidi->io->getPortName(port).c_str();
-		lua_pushstring(L, name);
+		lua_createtable(L, count, 0);
+		for(int i=0; i<count; i++)
+		{
+			const char *name = mod_rtmidi->io->getPortName(i).c_str();
+			lua_pushstring(L, name);
+			lua_rawseti(L, -2, i+1);
+		}
 	}
 	catch(RtMidiError &error)
 	{
@@ -169,12 +156,11 @@ _out_gc(lua_State *L)
 }
 
 static const luaL_Reg lmt_out [] = {
-	{"open_port", _out_open_port},
-	{"open_virtual_port", _out_open_virtual_port},
-	{"close_port", _out_close_port},
+	{"open", _out_open_port},
+	{"open_virtual", _out_open_virtual_port},
+	{"close", _out_close_port},
 
-	{"port_count", _out_port_count},
-	{"port_name", _out_port_name},
+	{"ports", _out_ports},
 	
 	{"__call", _out_send},
 	{"__gc", _out_gc},
@@ -221,8 +207,67 @@ _new(lua_State *L)
 	return 1;
 }
 
+static int
+_apis(lua_State *L)
+{
+	lua_newtable(L);
+
+	try
+	{
+		std::vector<RtMidi::Api> apis;
+		RtMidi::getCompiledApi(apis);
+	
+		for(std::vector<RtMidi::Api>::size_type i = 0; i != apis.size(); i++)
+		{
+			switch(apis[i])
+			{
+				case RtMidi::UNSPECIFIED:
+					lua_pushstring(L, "UNSPECIFIED");
+					lua_rawseti(L, -2, i+1);
+					break;
+				case RtMidi::MACOSX_CORE:
+					lua_pushstring(L, "MACOSX_CORE");
+					lua_rawseti(L, -2, i+1);
+					break;
+				case RtMidi::LINUX_ALSA:
+					lua_pushstring(L, "LINUX_ALSA");
+					lua_rawseti(L, -2, i+1);
+					break;
+				case RtMidi::UNIX_JACK:
+					lua_pushstring(L, "UNIX_JACK");
+					lua_rawseti(L, -2, i+1);
+					break;
+				case RtMidi::WINDOWS_MM:
+					lua_pushstring(L, "WINDOWS_MM");
+					lua_rawseti(L, -2, i+1);
+					break;
+				case RtMidi::RTMIDI_DUMMY:
+					lua_pushstring(L, "RTMIDI_DUMMY");
+					lua_rawseti(L, -2, i+1);
+					break;
+			}
+		}
+	}
+	catch(RtMidiError &error)
+	{
+		error.printMessage();
+	}
+
+	return 1;
+
+  //enum Api {
+  //  UNSPECIFIED,    /*!< Search for a working compiled API. */
+  //  MACOSX_CORE,    /*!< Macintosh OS-X Core Midi API. */
+  //  LINUX_ALSA,     /*!< The Advanced Linux Sound Architecture API. */
+  //  UNIX_JACK,      /*!< The JACK Low-Latency MIDI Server API. */
+  //  WINDOWS_MM,     /*!< The Microsoft Multimedia MIDI API. */
+  //  RTMIDI_DUMMY    /*!< A compilable but non-functional API. */
+  //};
+}
+
 static const luaL_Reg lrtmidi [] = {
 	{"new", _new},
+	{"apis", _apis},
 	{NULL, NULL}
 };
 

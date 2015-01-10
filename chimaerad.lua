@@ -45,10 +45,11 @@ resolver = OSC.new('osc.udp4://255.255.255.255:4444', function(time, path, fmt, 
 	if(meth) then meth(time, ...) end
 end)
 
+jobs = nil
+introspect = nil
+
 sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
-
-	local introspect = {}
 
 	local methods = {
 		['/stream/resolve'] = function(...)
@@ -62,23 +63,33 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 			sender(0, '/engines/dummy/redundancy', 'ii', id(), 0)
 			sender(0, '/engines/dummy/derivatives', 'ii', id(), 0)
 
-			sender(0, '/!', 'i', id())
+			introspect = {}
+			jobs = {'/!'}
+			sender(0, jobs[#jobs], 'i', id())
 		end,
 		['/stream/timeout'] = function(...)
 			sender = nil
 		end,
 
 		['/success'] = function(time, uuid, dest, ...)
-			print('success', uuid, dest)
-
 			if(dest:sub(-1) == '!') then
 				local o = JSON.decode(...)
-				introspect[o.path] = o
+				introspect[#introspect + 1] = o
+				jobs[#jobs] = nil
+
 				if(o.type == 'node') then
 					for _, v in ipairs(o.items) do
-						sender(0, o.path .. v .. '!', 'i', id())
+						jobs[#jobs + 1] = o.path .. v .. '!'
 					end
 				end
+
+				if(#jobs > 0) then
+					sender(0, jobs[#jobs], 'i', id())
+				else
+					--print(JSON.encode({result='success', reply=introspect}))
+				end
+			else
+				print('success', uuid, dest)
 			end
 		end
 	}
@@ -87,10 +98,15 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 	if(meth) then meth(time, ...) end
 end)
 
-midi = RTMIDI.new('UNIX_JACK')
---midi = RTMIDI.new('LINUX_ALSA')
-midi:open_virtual_port()
---mid:close_port()
+for _, api in ipairs(RTMIDI.apis()) do
+	print(api)
+end
+midi = RTMIDI.new('UNSPECIFIED')
+for _, port in ipairs(midi:ports()) do
+	print(port)
+end
+midi:open_virtual()
+--mid:close()
 
 local gids = {}
 local keys = {}
@@ -229,3 +245,8 @@ http = HTTP.new(9000, function(url)
 		end
 	end
 end)
+
+ifaces =IFACE.list()
+for k, v in pairs(ifaces) do
+	print(k, v)
+end

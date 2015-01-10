@@ -47,6 +47,7 @@ main(int argc, char **argv)
 	luaopen_http(L);
 	luaopen_zip(L);
 	luaopen_rtmidi(L);
+	luaopen_iface(L);
 	lua_gc(L, LUA_GCSTOP, 0);
 
 	if(luaL_dofile(L, argv[1]))

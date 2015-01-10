@@ -106,11 +106,6 @@ add_executable(chimaerad
 	mod_json.c
 # chimaerad
 	chimaerad.c
-	#chimaerad_host.c
-	#chimaerad_discover.c
-	#chimaerad_client.c
-	#chimaerad_source.c
-	#rtmidi_c.cpp
 # rtmidi
 	mod_rtmidi.cpp
 # http
@@ -118,6 +113,8 @@ add_executable(chimaerad
 	mod_http.c
 # zip
 	mod_zip.c
+# iface
+	mod_iface.c
 # tlsf
 	tlsf-3.0/tlsf.c)
 if(NOT USE_SYSTEM_RTMIDI)

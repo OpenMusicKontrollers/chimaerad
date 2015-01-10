@@ -137,6 +137,7 @@ int luaopen_osc(lua_State *L);
 int luaopen_http(lua_State *L);
 int luaopen_zip(lua_State *L);
 int luaopen_rtmidi(lua_State *L);
+int luaopen_iface(lua_State *L);
 
 int chimaerad_host_init(uv_loop_t *loop, chimaerad_host_t *host, uint16_t port);
 int chimaerad_host_deinit(chimaerad_host_t *host);
