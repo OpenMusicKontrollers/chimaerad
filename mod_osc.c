@@ -30,7 +30,8 @@
 #include <osc_stream.h>
 
 typedef struct _mod_osc_t mod_osc_t;
-typedef struct _osc_msg_t osc_msg_t;
+typedef struct _mod_msg_t mod_msg_t;
+typedef struct _mod_blob_t mod_blob_t;
 
 struct _mod_osc_t {
 	lua_State *L;
@@ -38,16 +39,21 @@ struct _mod_osc_t {
 	Inlist *messages;
 };
 
-struct _osc_msg_t {
+struct _mod_msg_t {
 	INLIST;
 	osc_data_t buf [OSC_STREAM_BUF_SIZE];
 	size_t len;
 };
 
+struct _mod_blob_t {
+	int32_t size;
+	uint8_t buf [0];
+};
+
 static void
 _trigger(mod_osc_t *mod_osc)
 {
-	osc_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, osc_msg_t);
+	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
 
 	if(osc_check_message(msg->buf, msg->len))
 		osc_stream_send(&mod_osc->stream, msg->buf, msg->len);
@@ -59,7 +65,7 @@ _on_sent(osc_stream_t *stream, size_t len, void *data)
 	mod_osc_t *mod_osc = data;
 	lua_State *L = mod_osc->L;
 
-	osc_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, osc_msg_t);
+	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
 	mod_osc->messages = inlist_remove(mod_osc->messages, mod_osc->messages);
 	free(msg); //TODO realtime
 
@@ -76,7 +82,7 @@ _send(lua_State *L)
 	const char *path = luaL_checkstring(L, 3);
 	const char *fmt = luaL_checkstring(L, 4);
 
-	osc_msg_t *msg = calloc(1, sizeof(osc_msg_t)); //FIXME realtime
+	mod_msg_t *msg = calloc(1, sizeof(mod_msg_t)); //FIXME realtime
 	osc_data_t *buf = msg->buf;
 	osc_data_t *ptr = buf;
 	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;
@@ -108,7 +114,8 @@ _send(lua_State *L)
 			}
 			case OSC_BLOB:
 			{
-				//TODO
+				mod_blob_t *tb = luaL_checkudata(L, pos++, "mod_blob_t");
+				ptr = osc_set_blob(ptr, end, tb->size, tb->buf);
 				break;
 			}
 			
@@ -261,7 +268,13 @@ _message(osc_data_t *buf, size_t len, void *data)
 				}
 				case OSC_BLOB:
 				{
-					//TODO
+					osc_blob_t b;
+					ptr = osc_get_blob(ptr, &b);
+					mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + b.size);
+					luaL_getmetatable(L, "mod_blob_t");
+					lua_setmetatable(L, -2);
+					tb->size = b.size;
+					memcpy(tb->buf, b.payload, b.size);
 					break;
 				}
 				
@@ -385,8 +398,73 @@ _new(lua_State *L)
 	return 1;
 }
 
+static int
+_blob(lua_State *L)
+{
+	int size = luaL_checkint(L, 1);
+	mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + size);
+	luaL_getmetatable(L, "mod_blob_t");
+	lua_setmetatable(L, -2);
+	tb->size = size;
+	memset(tb->buf, 0, size);
+
+	return 1;
+}
+
 static const luaL_Reg losc [] = {
 	{"new", _new},
+	{"blob", _blob},
+	{NULL, NULL}
+};
+
+static int
+_blob_index(lua_State *L)
+{
+	mod_blob_t *tb = luaL_checkudata(L, 1, "mod_blob_t");
+
+	int typ = lua_type(L, 2);
+	if(typ == LUA_TNUMBER)
+	{
+		int index = luaL_checkint(L, 2);
+		if( (index >= 0) && (index < tb->size) )
+			lua_pushnumber(L, tb->buf[index]);
+		else
+			lua_pushnil(L);
+	}
+	else if( (typ == LUA_TSTRING) && !strcmp(lua_tostring(L, 2), "raw") )
+		lua_pushlightuserdata(L, tb->buf);
+	else
+		lua_pushnil(L);
+
+	return 1;
+}
+
+static int
+_blob_newindex(lua_State *L)
+{
+	mod_blob_t *tb = luaL_checkudata(L, 1, "mod_blob_t");
+	int index = luaL_checkint(L, 2);
+
+	if( (index >= 0) && (index < tb->size) )
+		tb->buf[index] = luaL_checkint(L, 3);
+
+	return 0;
+}
+
+static int
+_blob_len(lua_State *L)
+{
+	mod_blob_t *tb = luaL_checkudata(L, 1, "mod_blob_t");
+
+	lua_pushnumber(L, tb->size);
+
+	return 1;
+}
+
+static const luaL_Reg lblob [] = {
+	{"__index", _blob_index},
+	{"__newindex", _blob_newindex},
+	{"__len", _blob_len},
 	{NULL, NULL}
 };
 
@@ -395,6 +473,10 @@ luaopen_osc(lua_State *L)
 {
 	luaL_newmetatable(L, "mod_osc_t");
 	luaL_register(L, NULL, lmt);
+	lua_pop(L, 1);
+	
+	luaL_newmetatable(L, "mod_blob_t");
+	luaL_register(L, NULL, lblob);
 	lua_pop(L, 1);
 
 	luaL_register(L, "OSC", losc);		
