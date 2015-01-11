@@ -47,12 +47,19 @@ end)
 
 jobs = nil
 introspect = nil
+n = 160
 
 sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
 
+	local replies = {
+		['/sensors/number'] = function(time, N)
+			n = N/3
+		end
+	}
+
 	local methods = {
-		['/stream/resolve'] = function(...)
+		['/stream/resolve'] = function(time, ...)
 			sender(0, '/engines/enabled', 'ii', id(), 0)
 			sender(0, '/engines/server', 'ii', id(), 0)
 			sender(0, '/engines/mode', 'is', id(), 'osc.tcp')
@@ -63,11 +70,13 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 			sender(0, '/engines/dummy/redundancy', 'ii', id(), 0)
 			sender(0, '/engines/dummy/derivatives', 'ii', id(), 0)
 
+			sender(0, '/sensors/number', 'i', id())
+
 			introspect = {}
 			jobs = {'/!'}
 			sender(0, jobs[#jobs], 'i', id())
 		end,
-		['/stream/timeout'] = function(...)
+		['/stream/timeout'] = function(time, ...)
 			sender = nil
 		end,
 
@@ -90,6 +99,8 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 				end
 			else
 				print('success', uuid, dest)
+				local reply = replies[dest]
+				if(reply) then reply(time, ...) end
 			end
 		end
 	}
@@ -101,109 +112,128 @@ end)
 for _, api in ipairs(RTMIDI.apis()) do
 	print(api)
 end
-midi = RTMIDI.new('UNSPECIFIED')
+midi = RTMIDI.new('UNIX_JACK')
 for _, port in ipairs(midi:ports()) do
 	print(port)
 end
 midi:open_virtual()
 --mid:close()
 
-local gids = {}
-local keys = {}
-local n = 160/3
-local control = 0x07 -- volume
+gids = {}
+keys = {}
+--local control = 0x07 -- volume
+control = 0x4a -- sound brightness
+
+dummy = {
+	['/on'] = function(time, sid, gid, pid, x, z)
+		local X = x*n + 23.166
+		local key = math.floor(X)
+		local bend = (X-key)/n*0x2000 + 0x1fff
+		local eff = z*0x3fff
+		local eff_msb = bit32.rshift(eff, 7)
+		local eff_lsb = bit32.band(eff, 0x7f)
+
+		midi( -- note on
+			bit32.bor(0x90, gid),
+			key,
+			0x7f)
+		midi( -- pitch bend
+			bit32.bor(0xe0, gid),
+			bit32.band(bend, 0x7f),
+			bit32.rshift(bend, 7))
+		midi( -- note pressure
+			bit32.bor(0xa0, gid),
+			key,
+			eff_msb)
+		if(control <= 0xd) then
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				bit32.bor(0x20, control),
+				eff_lsb)
+		end
+		midi( -- control change
+			bit32.bor(0xb0, gid),
+			control,
+			eff_msb)
+		
+		gids[sid] = gid
+		keys[sid] = key
+	end,
+
+	['/off'] = function(time, sid)
+		local gid = gids[sid]
+		local key = keys[sid]
+
+		midi( -- note off
+			bit32.bor(0x80, gid),
+			key,
+			0x7f)
+
+		gids[sid] = nil
+		keys[sid] = nil
+	end,
+
+	['/set'] = function(time, sid, x, z)
+		local X = x*n + 23.166
+		local gid = gids[sid]
+		local key = keys[sid]
+		local bend = (X-key)/n*0x2000 + 0x1fff
+		local eff = z*0x3fff
+		local eff_msb = bit32.rshift(eff, 7)
+		local eff_lsb = bit32.band(eff, 0x7f)
+
+		midi( -- pitch bend
+			bit32.bor(0xe0, gid),
+			bit32.band(bend, 0x7f),
+			bit32.rshift(bend, 7))
+		midi( -- note pressure
+			bit32.bor(0xa0, gid),
+			key,
+			eff_msb)
+		if(control <= 0xd) then
+			midi( -- control change
+				bit32.bor(0xb0, gid),
+				bit32.bor(0x20, control),
+				eff_lsb)
+		end
+		midi( -- control change
+			bit32.bor(0xb0, gid),
+			control,
+			eff_msb)
+	end,
+
+	['/idle'] = function(time)
+		--
+	end
+}
 
 responder = OSC.new('osc.tcp4://:3333', function(time, path, fmt, ...)
 	--print(time, path, fmt, ...)
 
 	local methods = {
 		['/stream/resolve'] = function(...)
-			--
+			print('-> resolve')
+		end,
+		['/stream/connect'] = function(...)
+			print('-> connect')
+		end,
+		['/stream/disconnect'] = function(...)
+			print('-> disconnect')
 		end,
 		['/stream/timeout'] = function(...)
 			responder = nil
-		end,
-
-		['/on'] = function(time, sid, gid, pid, x, z)
-			local X = x*n + 23.166
-			local key = math.floor(X)
-			local bend = (X-key)/n*0x2000 + 0x1fff
-			local eff = z*0x3fff
-			local eff_msb = bit32.rshift(eff, 7)
-			local eff_lsb = bit32.band(eff, 0x7f)
-
-			midi( -- note on
-				bit32.bor(0x90, gid),
-				key,
-				0x7f)
-			midi( -- pitch bend
-				bit32.bor(0xe0, gid),
-				bit32.band(bend, 0x7f),
-				bit32.rshift(bend, 7))
-			midi( -- note pressure
-				bit32.bor(0xa0, gid),
-				key,
-				eff_msb)
-			midi( -- control change
-				bit32.bor(0xb0, gid),
-				bit32.bor(0x20, control),
-				eff_lsb)
-			midi( -- control change
-				bit32.bor(0xb0, gid),
-				control,
-				eff_msb)
-			
-			gids[sid] = gid
-			keys[sid] = key
-		end,
-
-		['/off'] = function(time, sid)
-			local gid = gids[sid]
-			local key = keys[sid]
-
-			midi( -- note off
-				bit32.bor(0x80, gid),
-				key,
-				0x7f)
-
-			gids[sid] = nil
-			keys[sid] = nil
-		end,
-
-		['/set'] = function(time, sid, x, z)
-			local X = x*n + 23.166
-			local gid = gids[sid]
-			local key = keys[sid]
-			local bend = (X-key)/n*0x2000 + 0x1fff
-			local eff = z*0x3fff
-			local eff_msb = bit32.rshift(eff, 7)
-			local eff_lsb = bit32.band(eff, 0x7f)
-
-			midi( -- pitch bend
-				bit32.bor(0xe0, gid),
-				bit32.band(bend, 0x7f),
-				bit32.rshift(bend, 7))
-			midi( -- note pressure
-				bit32.bor(0xa0, gid),
-				key,
-				eff_msb)
-			midi( -- control change
-				bit32.bor(0xb0, gid),
-				bit32.bor(0x20, control),
-				eff_lsb)
-			midi( -- control change
-				bit32.bor(0xb0, gid),
-				control,
-				eff_msb)
-		end,
-
-		['/idle'] = function(time)
-			--
 		end
 	}
 
-	local meth = methods[path]
-	if(meth) then meth(time, ...) end
+	local meth = dummy[path]
+	if(meth) then
+		meth(time, ...)
+	else
+		meth = methods[path]
+		if(meth) then
+			meth(time, ...)
+		end
+	end
 end)
 
 zip = ZIP.new('app.zip')

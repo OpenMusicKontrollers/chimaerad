@@ -34,6 +34,7 @@ struct _rtmem_t {
 };
 	
 static rtmem_t rtmem;
+static uv_signal_t sigint, sigterm, sigquit;
 
 void *
 rt_alloc(size_t len)
@@ -82,6 +83,17 @@ _lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 	}
 }
 
+static void
+_sig(uv_signal_t *handle, int signum)
+{
+	lua_State *L = handle->data;
+	lua_close(L);
+
+	uv_signal_stop(&sigint);
+	uv_signal_stop(&sigterm);
+	uv_signal_stop(&sigquit);
+}
+
 int
 main(int argc, char **argv)
 {
@@ -109,10 +121,29 @@ main(int argc, char **argv)
 
 	if(luaL_dofile(L, argv[1]))
 		fprintf(stderr, "main: %s\n", lua_tostring(L, -1));
+	
+	int err;
+	sigint.data = L;
+	if((err = uv_signal_init(loop, &sigint)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+	if((err = uv_signal_start(&sigint, _sig, SIGINT)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+
+	sigterm.data = L;
+	if((err = uv_signal_init(loop, &sigterm)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+	if((err = uv_signal_start(&sigterm, _sig, SIGTERM)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+
+	sigquit.data = L;
+	if((err = uv_signal_init(loop, &sigquit)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+	if((err = uv_signal_start(&sigquit, _sig, SIGQUIT)))
+		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 
 	uv_run(loop, UV_RUN_DEFAULT);
 
-	lua_close(L);
+	//lua_close(L);
 
 	tlsf_remove_pool(rtmem.tlsf, rtmem.pool);
 	tlsf_destroy(rtmem.tlsf);
