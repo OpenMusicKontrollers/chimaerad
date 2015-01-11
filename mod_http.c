@@ -28,6 +28,10 @@
 
 #include <http_parser.h>
 
+extern void * rt_alloc(size_t len);
+extern void * rt_realloc(size_t len, void *buf);
+extern void rt_free(void *buf);
+
 typedef struct _mod_http_t mod_http_t;
 typedef struct _http_client_t http_client_t;
 
@@ -63,7 +67,7 @@ _on_client_close(uv_handle_t *handle)
 	mod_http_t *mod_http = client->mod_http;
 
 	mod_http->http_clients = inlist_remove(mod_http->http_clients, INLIST_GET(client));
-	free(client);
+	rt_free(client);
 }
 
 static int
@@ -148,7 +152,7 @@ _on_url(http_parser *parser, const char *at, size_t len)
 static void
 _on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
-	buf->base = malloc(suggested_size); //TODO
+	buf->base = rt_alloc(suggested_size); //TODO
 	buf->len = suggested_size;
 }
 
@@ -176,7 +180,7 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 		uv_close((uv_handle_t *)handle, _on_client_close);
 	}
 
-	free(buf->base);
+	rt_free(buf->base);
 }
 
 static void
@@ -187,7 +191,7 @@ _on_connected(uv_stream_t *handle, int status)
 	mod_http_t *mod_http = handle->data;
 	//TODO check status
 
-	http_client_t *client = calloc(1, sizeof(http_client_t));
+	http_client_t *client = rt_alloc(sizeof(http_client_t));
 	if(!client)
 		return;
 

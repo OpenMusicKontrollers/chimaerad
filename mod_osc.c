@@ -29,6 +29,10 @@
 #include <osc.h>
 #include <osc_stream.h>
 
+extern void * rt_alloc(size_t len);
+extern void * rt_realloc(size_t len, void *buf);
+extern void rt_free(void *buf);
+
 typedef struct _mod_osc_t mod_osc_t;
 typedef struct _mod_msg_t mod_msg_t;
 typedef struct _mod_blob_t mod_blob_t;
@@ -67,7 +71,7 @@ _on_sent(osc_stream_t *stream, size_t len, void *data)
 
 	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
 	mod_osc->messages = inlist_remove(mod_osc->messages, mod_osc->messages);
-	free(msg); //TODO realtime
+	rt_free(msg);
 
 	if(mod_osc->messages)
 		_trigger(mod_osc);
@@ -82,7 +86,7 @@ _send(lua_State *L)
 	const char *path = luaL_checkstring(L, 3);
 	const char *fmt = luaL_checkstring(L, 4);
 
-	mod_msg_t *msg = calloc(1, sizeof(mod_msg_t)); //FIXME realtime
+	mod_msg_t *msg = rt_alloc(sizeof(mod_msg_t));
 	osc_data_t *buf = msg->buf;
 	osc_data_t *ptr = buf;
 	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;

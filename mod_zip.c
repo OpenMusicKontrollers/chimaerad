@@ -27,6 +27,10 @@
 #endif
 #include <zip.h>
 
+extern void * rt_alloc(size_t len);
+extern void * rt_realloc(size_t len, void *buf);
+extern void rt_free(void *buf);
+
 typedef struct _mod_zip_t mod_zip_t;
 
 struct _mod_zip_t {
@@ -48,7 +52,7 @@ _read(lua_State *L)
 	if(!f)
 		goto err;
 	
-	char *str = malloc(fsize + 1);
+	char *str = rt_alloc(fsize + 1);
 	if(!str)
 		goto err;
 
@@ -62,7 +66,7 @@ _read(lua_State *L)
 
 err:
 	if(str)
-		free(str);
+		rt_free(str);
 	if(f)
 		zip_fclose(f);
 

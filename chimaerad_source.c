@@ -633,7 +633,6 @@ chimaerad_source_deinit(chimaerad_source_t *source)
 	tlsf_destroy(source->tlsf);
 #if defined(__WINDOWS__)
 	free(source->area);
-	source->area = malloc(AREA_SIZE);
 #elif defined(__linux__) || defined(__CYGWIN__)
 	munmap(source->area, AREA_SIZE);
 #elif defined(__APPLE__)
