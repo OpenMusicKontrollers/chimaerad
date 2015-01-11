@@ -34,7 +34,11 @@ struct _rtmem_t {
 };
 	
 static rtmem_t rtmem;
-static uv_signal_t sigint, sigterm, sigquit;
+static uv_signal_t sigint;
+static uv_signal_t sigterm;
+#if defined(SIGQUIT)
+static uv_signal_t sigquit;
+#endif
 
 void *
 rt_alloc(size_t len)
@@ -87,11 +91,14 @@ static void
 _sig(uv_signal_t *handle, int signum)
 {
 	lua_State *L = handle->data;
+
 	lua_close(L);
 
 	uv_signal_stop(&sigint);
 	uv_signal_stop(&sigterm);
+#if defined(SIGQUIT)
 	uv_signal_stop(&sigquit);
+#endif
 }
 
 int
@@ -135,22 +142,21 @@ main(int argc, char **argv)
 	if((err = uv_signal_start(&sigterm, _sig, SIGTERM)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 
+#if defined(SIGQUIT)
 	sigquit.data = L;
 	if((err = uv_signal_init(loop, &sigquit)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 	if((err = uv_signal_start(&sigquit, _sig, SIGQUIT)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
+#endif
 
 	uv_run(loop, UV_RUN_DEFAULT);
-
-	//lua_close(L);
 
 	tlsf_remove_pool(rtmem.tlsf, rtmem.pool);
 	tlsf_destroy(rtmem.tlsf);
 #if defined(__WINDOWS__)
 	free(rtmem.area);
 #else
-	munmap(rtmem.area, AREA_SIZE);
 	munmap(rtmem.area, AREA_SIZE);
 #endif
 
