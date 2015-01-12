@@ -109,7 +109,7 @@ main(int argc, char **argv)
 #elif defined(__linux__) || defined(__CYGWIN__)
 	rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_32BIT|MAP_PRIVATE|MAP_ANONYMOUS|MAP_LOCKED, -1, 0);
 #elif defined(__APPLE__)
-	rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE, -1, 0);
+	rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
 #endif
 	rtmem.tlsf = tlsf_create_with_pool(rtmem.area, AREA_SIZE);
 	rtmem.pool = tlsf_get_pool(rtmem.tlsf);
