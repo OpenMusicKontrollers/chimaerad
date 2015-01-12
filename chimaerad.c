@@ -115,7 +115,11 @@ main(int argc, char **argv)
 	rtmem.pool = tlsf_get_pool(rtmem.tlsf);
 
 	uv_loop_t *loop = uv_default_loop();
-	lua_State *L = lua_newstate(_lua_alloc, NULL);
+#if defined(USE_LUAJIT)
+	lua_State *L = luaL_newstate(); // use LuaJIT internal memory allocator
+#else
+	lua_State *L = lua_newstate(_lua_alloc, NULL); // use TLSF memory allocator
+#endif
 
 	luaL_openlibs(L);
 	luaopen_json(L);
