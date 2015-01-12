@@ -88,6 +88,10 @@ if(WIN32)
 	set(CMAKE_C_FLAGS "-std=gnu99")
 	set(CMAKE_EXE_LINKER_FLAGS "-static -static-libgcc -static-libstdc++")
 	set(LIBS ${LIBS} -lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt)
+elseif(APPLE)
+	if(CMAKE_SIZEOF_VOID_P MATCHES "8")
+		set(CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000")
+	endif()
 endif()
 
 # chimaerad
