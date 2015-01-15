@@ -17,13 +17,23 @@
 
 #include <stdio.h>
 
+// include main header
 #include <chimaerad.h>
+
+// include Lua
+#include <lualib.h>
+#include <lauxlib.h>
 
 #if !defined(__WINDOWS__)
 #	include <sys/mman.h>
 #endif
 
-#define AREA_SIZE 0x1000000UL // 16MB TODO increase dynamically
+// include libuv
+#include <uv.h>
+
+// include TLSF
+#include <tlsf.h>
+#define AREA_SIZE 0x2000000UL // 32MB TODO increase dynamically
 
 typedef struct _rtmem_t rtmem_t;
 
@@ -88,10 +98,8 @@ _lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 }
 
 static void
-_sig(uv_signal_t *handle, int signum)
+_deinit(lua_State *L)
 {
-	lua_State *L = handle->data;
-
 	lua_close(L);
 
 	uv_signal_stop(&sigint);
@@ -99,6 +107,14 @@ _sig(uv_signal_t *handle, int signum)
 #if defined(SIGQUIT)
 	uv_signal_stop(&sigquit);
 #endif
+}
+
+static void
+_sig(uv_signal_t *handle, int signum)
+{
+	lua_State *L = handle->data;
+
+	_deinit(L);
 }
 
 int
@@ -128,8 +144,10 @@ main(int argc, char **argv)
 	luaopen_zip(L);
 	luaopen_rtmidi(L);
 	luaopen_iface(L);
+	luaopen_dns_sd(L);
+	lua_pop(L, 7);
 	lua_gc(L, LUA_GCSTOP, 0);
-
+	
 	if(luaL_dofile(L, argv[1]))
 		fprintf(stderr, "main: %s\n", lua_tostring(L, -1));
 	
@@ -155,6 +173,8 @@ main(int argc, char **argv)
 #endif
 
 	uv_run(loop, UV_RUN_DEFAULT);
+	
+	//_deinit(L);
 
 	tlsf_remove_pool(rtmem.tlsf, rtmem.pool);
 	tlsf_destroy(rtmem.tlsf);

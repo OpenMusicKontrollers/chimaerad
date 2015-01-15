@@ -15,7 +15,8 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
  */
 
-#define LUA_COMPAT_MODULE
+#include <string.h>
+
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -59,27 +60,101 @@ _list(lua_State *L)
 	for(int i=0; i<count; i++)
 	{
 		uv_interface_address_t *iface = &ifaces[i];
-		// we are only interested in external IPv4 interfaces
-		if( (iface->is_internal == 0) && (iface->address.address4.sin_family == AF_INET) )
+		char buffer[INET6_ADDRSTRLEN];
+		const char *result;
+		char hmac [18]; // "xx:xx:xx:xx:xx:xx\0"
+
+		lua_createtable(L, 0, 3);
 		{
-			uint32_t ip = be32toh(ifaces[i].address.address4.sin_addr.s_addr);
-			uint32_t sub = be32toh(ifaces[i].netmask.netmask4.sin_addr.s_addr);
+			lua_pushboolean(L, iface->is_internal);
+			lua_setfield(L, -2, "internal");
 
-			char cidr [20];
-			uint8_t mask = subnet_to_cidr(sub);
-			ip2strCIDR(ip, mask, cidr);
+			if(iface->address.address4.sin_family == AF_INET)
+				result = inet_ntop(AF_INET, &ifaces[i].address.address4.sin_addr.s_addr, buffer, sizeof(buffer));
+			else
+				result = inet_ntop(AF_INET6, &ifaces[i].address.address6.sin6_addr.s6_addr, buffer, sizeof(buffer));
+			lua_pushstring(L, result);
+			lua_setfield(L, -2, "address");
 
-			lua_pushstring(L, cidr);
-			lua_setfield(L, -2, ifaces[i].name);
+			if(iface->netmask.netmask4.sin_family == AF_INET)
+				result = inet_ntop(AF_INET, &ifaces[i].netmask.netmask4.sin_addr.s_addr, buffer, sizeof(buffer));
+			else
+				result = inet_ntop(AF_INET6, &ifaces[i].netmask.netmask6.sin6_addr.s6_addr, buffer, sizeof(buffer));
+			lua_pushstring(L, result);
+			lua_setfield(L, -2, "netmask");
+
+			uint8_t *mac = (uint8_t *)iface->phys_addr;
+			sprintf(hmac, "%02x:%02x:%02x:%02x:%02x:%02x", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+			lua_pushstring(L, hmac);
+			lua_setfield(L, -2, "mac");
 		}
+
+		lua_setfield(L, -2, ifaces[i].name);
 	}
 	uv_free_interface_addresses(ifaces, count);
 
 	return 1;
 }
 
+static int
+_check(lua_State *L)
+{
+	const char *af = luaL_checkstring(L, 1);
+	const char *src_ip = luaL_checkstring(L, 2);
+	const char *src_mask = luaL_checkstring(L, 3);
+	const char *dst_ip = luaL_checkstring(L, 4);
+
+	int AF = 0;
+	if(!strcmp(af, "inet"))
+		AF = AF_INET;
+	else if(!strcmp(af, "inet6"))
+		AF = AF_INET6;
+
+	int ret = 0;
+
+	if(AF == AF_INET)
+	{
+		uint32_t src_ip4;
+		uint32_t src_mask4;
+		uint32_t dst_ip4;
+
+		if(!inet_pton(AF_INET, src_ip, &src_ip4)) goto fail;
+		if(!inet_pton(AF_INET, src_mask, &src_mask4)) goto fail;
+		if(!inet_pton(AF_INET, dst_ip, &dst_ip4)) goto fail;
+
+		ret = (src_ip4 & src_mask4) == (dst_ip4 & src_mask4);
+	}
+	else
+	{
+		uint16_t src_ip6 [8];
+		uint16_t src_mask6 [8];
+		uint16_t dst_ip6 [8];
+
+		if(!inet_pton(AF_INET6, src_ip, src_ip6)) goto fail;
+		if(!inet_pton(AF_INET6, src_mask, src_mask6)) goto fail;
+		if(!inet_pton(AF_INET6, dst_ip, dst_ip6)) goto fail;
+
+		ret =  (src_ip6[0] & src_mask6[0]) == (dst_ip6[0] & src_mask6[0])
+				&& (src_ip6[1] & src_mask6[1]) == (dst_ip6[1] & src_mask6[1])
+				&& (src_ip6[2] & src_mask6[2]) == (dst_ip6[2] & src_mask6[2])
+				&& (src_ip6[3] & src_mask6[3]) == (dst_ip6[3] & src_mask6[3])
+				&& (src_ip6[4] & src_mask6[4]) == (dst_ip6[4] & src_mask6[4])
+				&& (src_ip6[5] & src_mask6[5]) == (dst_ip6[5] & src_mask6[5])
+				&& (src_ip6[6] & src_mask6[6]) == (dst_ip6[6] & src_mask6[6])
+				&& (src_ip6[7] & src_mask6[7]) == (dst_ip6[7] & src_mask6[7]);
+	}
+
+	lua_pushboolean(L, ret);
+	return 1;
+
+fail:
+	lua_pushnil(L);
+	return 1;
+}
+
 static const luaL_Reg liface [] = {
 	{"list", _list},
+	{"check", _check},
 	{NULL, NULL}
 };
 

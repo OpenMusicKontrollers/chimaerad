@@ -17,7 +17,6 @@
 
 #include <stdlib.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 

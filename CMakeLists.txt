@@ -78,7 +78,7 @@ if(USE_LUAJIT)
 	include_directories(${LUAJIT_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${LUAJIT_LDFLAGS})
 else()
-	pkg_search_module(LUA REQUIRED lua>=5.1)
+	pkg_search_module(LUA REQUIRED lua>=5.1 lua5.2 lua5.1)
 	include_directories(${LUA_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${LUA_LDFLAGS})
 endif()
@@ -92,6 +92,15 @@ elseif(APPLE)
 	if(CMAKE_SIZEOF_VOID_P MATCHES "8")
 		set(CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000")
 	endif()
+endif()
+
+if(WIN32 OR APPLE)
+	find_library(DNS_SD dns_sd)
+	set(LIBS ${LIBS} ${DNS_SD})
+else()
+	pkg_search_module(DNS_SD REQUIRED avahi-compat-libdns_sd>=0.6)
+	include_directories(${DNS_SD_INCLUDE_DIRS})
+	set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
 endif()
 
 # chimaerad
@@ -119,6 +128,8 @@ add_executable(chimaerad
 	mod_zip.c
 # iface
 	mod_iface.c
+# dns_sd
+	mod_dns_sd.c
 # tlsf
 	tlsf-3.0/tlsf.c)
 if(NOT USE_SYSTEM_RTMIDI)

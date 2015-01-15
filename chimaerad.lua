@@ -109,14 +109,22 @@ sender = OSC.new('osc.udp4://chimaera.local:4444', function(time, path, fmt, ...
 	if(meth) then meth(time, ...) end
 end)
 
-for _, api in ipairs(RTMIDI.apis()) do
+apis = RTMIDI.apis()
+for _, api in ipairs(apis) do
 	print(api)
 end
+--midi = RTMIDI.new(apis[1])
 midi = RTMIDI.new('UNIX_JACK')
-for _, port in ipairs(midi:ports()) do
+
+ports = midi:ports()
+for _, port in ipairs(ports) do
 	print(port)
 end
-midi:open_virtual()
+if(apis[1] == 'WINDOWS_MM') then
+	midi:open(ports[1])
+else
+	midi:open_virtual()
+end
 --mid:close()
 
 gids = {}
@@ -275,8 +283,3 @@ http = HTTP.new(9000, function(url)
 		end
 	end
 end)
-
-ifaces =IFACE.list()
-for k, v in pairs(ifaces) do
-	print(k, v)
-end
