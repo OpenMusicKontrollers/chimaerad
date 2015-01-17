@@ -155,6 +155,7 @@ _browse_cb(
 static int
 _browse(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	int fd;
 	int err;
 	DNSServiceFlags flags = 0;
@@ -196,9 +197,8 @@ _browse(lua_State *L)
 	if((fd = DNSServiceRefSockFD(item->ref)) < 0)
 		goto fail;
 
-	uv_loop_t *loop = uv_default_loop();
 	item->poll.data = item;
-	if((err = uv_poll_init_socket(loop, &item->poll, fd)))
+	if((err = uv_poll_init_socket(app->loop, &item->poll, fd)))
 	{
 		fprintf(stderr, "%s\n", uv_strerror(err));
 		goto fail;
@@ -301,6 +301,7 @@ _resolve_cb(
 static int
 _resolve(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	int fd;
 	int err;
 	DNSServiceFlags flags = 0;
@@ -346,9 +347,8 @@ _resolve(lua_State *L)
 	if((fd = DNSServiceRefSockFD(item->ref)) < 0)
 		goto fail;
 
-	uv_loop_t *loop = uv_default_loop();
 	item->poll.data = item;
-	if((err = uv_poll_init_socket(loop, &item->poll, fd)))
+	if((err = uv_poll_init_socket(app->loop, &item->poll, fd)))
 	{
 		fprintf(stderr, "%s\n", uv_strerror(err));
 		goto fail;
@@ -457,6 +457,7 @@ _query_cb(
 static int
 _query(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	int fd;
 	int err;
 	DNSServiceFlags flags = 0;
@@ -504,9 +505,8 @@ _query(lua_State *L)
 	if((fd = DNSServiceRefSockFD(item->ref)) < 0)
 		goto fail;
 
-	uv_loop_t *loop = uv_default_loop();
 	item->poll.data = item;
-	if((err = uv_poll_init_socket(loop, &item->poll, fd)))
+	if((err = uv_poll_init_socket(app->loop, &item->poll, fd)))
 	{
 		fprintf(stderr, "_query: %s\n", uv_strerror(err));
 		goto fail;
@@ -532,18 +532,22 @@ static const luaL_Reg ldns_sd [] = {
 };
 
 int
-luaopen_dns_sd(lua_State *L)
+luaopen_dns_sd(app_t *app)
 {
+	lua_State *L = app->L;
+
 #if defined(__linux__)
 	// disable annoying warning about using avahi's dns_sd compatibility layer
 	setenv("AVAHI_COMPAT_NOWARN", "1", 1);
 #endif
 
 	luaL_newmetatable(L, "item_t");
-	luaL_register(L, NULL, litem);
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, NULL, litem, 1);
 	lua_pop(L, 1);
-	
-	luaL_register(L, "DNS_SD", ldns_sd);
+
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "DNS_SD", ldns_sd, 1);
 
 	return 1;
 }

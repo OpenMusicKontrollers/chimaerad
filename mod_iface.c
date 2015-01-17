@@ -141,9 +141,12 @@ static const luaL_Reg liface [] = {
 };
 
 int
-luaopen_iface(lua_State *L)
+luaopen_iface(app_t *app)
 {
-	luaL_register(L, "IFACE", liface);		
+	lua_State *L = app->L;
+
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "IFACE", liface, 1);
 
 	return 1;
 }

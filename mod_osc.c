@@ -43,6 +43,7 @@ struct _mod_osc_t {
 
 struct _mod_msg_t {
 	INLIST;
+	app_t *app;
 	osc_data_t buf [OSC_STREAM_BUF_SIZE];
 	size_t len;
 };
@@ -69,7 +70,7 @@ _on_sent(osc_stream_t *stream, size_t len, void *data)
 
 	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
 	mod_osc->messages = inlist_remove(mod_osc->messages, mod_osc->messages);
-	rt_free(msg);
+	rt_free(msg->app, msg);
 
 	if(mod_osc->messages)
 		_trigger(mod_osc);
@@ -78,6 +79,7 @@ _on_sent(osc_stream_t *stream, size_t len, void *data)
 static int
 _send(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	mod_osc_t *mod_osc = luaL_checkudata(L, 1, "mod_osc_t");
 
 	if(lua_gettop(L) < 4)
@@ -90,9 +92,11 @@ _send(lua_State *L)
 	if(!path || !fmt)
 		return 0;
 
-	mod_msg_t *msg = rt_alloc(sizeof(mod_msg_t));
+	mod_msg_t *msg = rt_alloc(app, sizeof(mod_msg_t));
 	if(!msg)
 		return 0;
+	msg->app = app;	
+
 	osc_data_t *buf = msg->buf;
 	osc_data_t *ptr = buf;
 	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;
@@ -199,7 +203,7 @@ _send(lua_State *L)
 		if(msg->len > 0)
 			mod_osc->messages = inlist_append(mod_osc->messages, INLIST_GET(msg));
 		else
-			rt_free(msg);
+			rt_free(msg->app, msg);
 	}
 
 	if(is_empty)
@@ -394,8 +398,7 @@ _on_recv(osc_stream_t *stream, osc_data_t *buf, size_t len, void *data)
 static int
 _new(lua_State *L)
 {
-	//uv_loop_t *loop = lua_touserdata(L, lua_upvalueindex(1)); FIXME
-	uv_loop_t *loop = uv_default_loop();
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	const char *url = luaL_checkstring(L, 1);
 	int has_callback = lua_gettop(L) > 1; //TODO check whether this is callable
 
@@ -405,7 +408,7 @@ _new(lua_State *L)
 	memset(mod_osc, 0, sizeof(mod_osc_t));
 	mod_osc->L = L;
 
-	if(osc_stream_init(loop, &mod_osc->stream, url, _on_recv, _on_sent, mod_osc))
+	if(osc_stream_init(app->loop, &mod_osc->stream, url, _on_recv, _on_sent, mod_osc))
 		goto fail;
 
 	luaL_getmetatable(L, "mod_osc_t");
@@ -503,17 +506,22 @@ static const luaL_Reg lblob [] = {
 };
 
 int
-luaopen_osc(lua_State *L)
+luaopen_osc(app_t *app)
 {
+	lua_State *L = L;
+
 	luaL_newmetatable(L, "mod_osc_t");
-	luaL_register(L, NULL, lmt);
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, NULL, lmt, 1);
 	lua_pop(L, 1);
 	
 	luaL_newmetatable(L, "mod_blob_t");
-	luaL_register(L, NULL, lblob);
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, NULL, lblob, 1);
 	lua_pop(L, 1);
 
-	luaL_register(L, "OSC", losc);		
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "OSC", losc, 1);
 
 	return 1;
 }

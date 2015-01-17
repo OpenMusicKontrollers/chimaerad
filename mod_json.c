@@ -193,9 +193,12 @@ static const luaL_Reg ljson [] = {
 };
 
 int
-luaopen_json(lua_State *L)
+luaopen_json(app_t *app)
 {
-	luaL_register(L, "JSON", ljson);		
+	lua_State *L = app->L;
+
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "JSON", ljson, 1);
 
 	return 1;
 }

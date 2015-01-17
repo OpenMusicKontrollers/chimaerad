@@ -263,9 +263,9 @@ setmetatable(content_type, {
 		return 'Content-Type: application/octet-stream\r\n\r\n'
 	end})
 
-http = HTTP.new(9000, function(url)
+http = HTTP.new(9000, function(client, url)
 	if(url:find('/%?')) then
-		return code[200] .. content_type['json'] .. '{"success":false}'
+		client(code[200] .. content_type['json'] .. '{"success":false}')
 	else
 		if(url == '/') then
 			url = '/index.html'
@@ -277,9 +277,9 @@ http = HTTP.new(9000, function(url)
 
 		local chunk = zip(file .. '.' .. suffix)
 		if(chunk) then
-			return code[200] .. content_type[suffix] .. chunk
+			client(code[200] .. content_type[suffix] .. chunk)
 		else
-			return code[404]
+			client(code[404])
 		end
 	end
 end)

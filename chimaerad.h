@@ -18,18 +18,68 @@
 #ifndef _CHIMAERAD_H
 #define _CHIMAERAD_H
 
+// include libuv
+#include <uv.h>
+
+// include TLSF
+#include <tlsf.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// include Lua
 #include <lua.h>
 
-void * rt_alloc(size_t len);
-void * rt_realloc(size_t len, void *buf);
-void rt_free(void *buf);
+typedef struct _rtmem_t rtmem_t;
+typedef struct _app_t app_t;
 
-int luaopen_json(lua_State *L);
-int luaopen_osc(lua_State *L);
-int luaopen_http(lua_State *L);
-int luaopen_zip(lua_State *L);
-int luaopen_rtmidi(lua_State *L);
-int luaopen_iface(lua_State *L);
-int luaopen_dns_sd(lua_State *L);
+struct _rtmem_t {
+	void *area;
+	tlsf_t tlsf;
+	pool_t pool;
+};
+	
+struct _app_t {
+	uv_loop_t *loop;
+	lua_State *L;
+	rtmem_t rtmem;
+
+	uv_signal_t sigint;
+	uv_signal_t sigterm;
+#if defined(SIGQUIT)
+	uv_signal_t sigquit;
+#endif
+};
+
+static inline void *
+rt_alloc(app_t *app, size_t len)
+{
+	return tlsf_malloc(app->rtmem.tlsf, len);
+}
+
+static inline void *
+rt_realloc(app_t *app, size_t len, void *buf)
+{
+	return tlsf_realloc(app->rtmem.tlsf, buf, len);
+}
+
+static inline void
+rt_free(app_t *app, void *buf)
+{
+	tlsf_free(app->rtmem.tlsf, buf);
+}
+
+int luaopen_json(app_t *app);
+int luaopen_osc(app_t *app);
+int luaopen_http(app_t *app);
+int luaopen_zip(app_t *app);
+int luaopen_rtmidi(app_t *app);
+int luaopen_iface(app_t *app);
+int luaopen_dns_sd(app_t *app);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // _CHIMAERAD_H

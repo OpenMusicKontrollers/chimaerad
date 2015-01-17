@@ -17,10 +17,11 @@
 
 #include <cstring>
 
+#include <chimaerad.h>
+
 extern "C"
 {
 #define LUA_COMPAT_MODULE
-#include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
 }
@@ -274,15 +275,18 @@ static const luaL_Reg lrtmidi [] = {
 extern "C"
 {
 int
-luaopen_rtmidi(lua_State *L)
+luaopen_rtmidi(app_t *app)
 {
+	lua_State *L = app->L;
+
 	luaL_newmetatable(L, "mod_rtmidi_out_t");
-	luaL_register(L, NULL, lmt_out);
+	luaL_openlib(L, NULL, lmt_out, 0);
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pop(L, 1);
 
-	luaL_register(L, "RTMIDI", lrtmidi);		
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "RTMIDI", lrtmidi, 1);
 
 	return 1;
 }

@@ -36,8 +36,9 @@ struct _mod_zip_t {
 };
 
 static int
-_read(lua_State *L)
+_call(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	mod_zip_t *mod_zip = luaL_checkudata(L, 1, "mod_zip_t");
 	if(!mod_zip)
 		goto fail;
@@ -53,7 +54,7 @@ _read(lua_State *L)
 	if(!f)
 		goto fail;
 	
-	char *str = rt_alloc(fsize + 1);
+	char *str = rt_alloc(app, fsize + 1);
 	if(!str)
 		goto fail;
 
@@ -67,7 +68,7 @@ _read(lua_State *L)
 
 fail:
 	if(str)
-		rt_free(str);
+		rt_free(app, str);
 	if(f)
 		zip_fclose(f);
 
@@ -87,7 +88,7 @@ _gc(lua_State *L)
 }
 
 static const luaL_Reg lmt [] = {
-	{"__call", _read},
+	{"__call", _call},
 	{"__gc", _gc},
 	{NULL, NULL}
 };
@@ -128,13 +129,17 @@ static const luaL_Reg lzip [] = {
 };
 
 int
-luaopen_zip(lua_State *L)
+luaopen_zip(app_t *app)
 {
+	lua_State *L = app->L;
+
 	luaL_newmetatable(L, "mod_zip_t");
-	luaL_register(L, NULL, lmt);
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, NULL, lmt, 1);
 	lua_pop(L, 1);
 
-	luaL_register(L, "ZIP", lzip);		
+	lua_pushlightuserdata(L, app);
+	luaL_openlib(L, "ZIP", lzip, 1);		
 
 	return 1;
 }

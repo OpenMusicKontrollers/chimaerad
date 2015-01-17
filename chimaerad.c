@@ -31,160 +31,112 @@
 #	include <sys/mman.h>
 #endif
 
-// include libuv
-#include <uv.h>
-
-// include TLSF
-#include <tlsf.h>
 #define AREA_SIZE 0x2000000UL // 32MB TODO increase dynamically
-
-typedef struct _rtmem_t rtmem_t;
-
-struct _rtmem_t {
-	void *area;
-	tlsf_t tlsf;
-	pool_t pool;
-};
-	
-static rtmem_t rtmem;
-static uv_signal_t sigint;
-static uv_signal_t sigterm;
-#if defined(SIGQUIT)
-static uv_signal_t sigquit;
-#endif
-
-void *
-rt_alloc(size_t len)
-{
-	void *data = NULL;
-	
-	if(!(data = tlsf_malloc(rtmem.tlsf, len)))
-		fprintf(stderr, "rt_alloc: out-of-memory\n");
-
-	return data;
-}
-
-void *
-rt_realloc(size_t len, void *buf)
-{
-	void *data = NULL;
-	
-	if(!(data =tlsf_realloc(rtmem.tlsf, buf, len)))
-		fprintf(stderr, "rt_realloc: out-of-memory\n");
-
-	return data;
-}
-
-void
-rt_free(void *buf)
-{
-	tlsf_free(rtmem.tlsf, buf);
-}
 
 static void *
 _lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 {
-	(void)ud;
+	app_t *app = ud;
 	(void)osize;
 
 	if(nsize == 0) {
 		if(ptr)
-			tlsf_free(rtmem.tlsf, ptr);
+			tlsf_free(app->rtmem.tlsf, ptr);
 		return NULL;
 	}
 	else {
 		if(ptr)
-			return tlsf_realloc(rtmem.tlsf, ptr, nsize);
+			return tlsf_realloc(app->rtmem.tlsf, ptr, nsize);
 		else
-			return tlsf_malloc(rtmem.tlsf, nsize);
+			return tlsf_malloc(app->rtmem.tlsf, nsize);
 	}
 }
 
 static void
-_deinit(lua_State *L)
+_deinit(app_t *app)
 {
-	lua_close(L);
+	lua_close(app->L);
 
-	uv_signal_stop(&sigint);
-	uv_signal_stop(&sigterm);
+	uv_signal_stop(&app->sigint);
+	uv_signal_stop(&app->sigterm);
 #if defined(SIGQUIT)
-	uv_signal_stop(&sigquit);
+	uv_signal_stop(&app->sigquit);
 #endif
 }
 
 static void
 _sig(uv_signal_t *handle, int signum)
 {
-	lua_State *L = handle->data;
+	app_t *app = handle->data;
 
-	_deinit(L);
+	_deinit(app);
 }
 
 int
 main(int argc, char **argv)
 {
+	static app_t app;
+
 #if defined(__WINDOWS__)
-	rtmem.area = malloc(AREA_SIZE);
+	app.rtmem.area = malloc(AREA_SIZE);
 #elif defined(__linux__) || defined(__CYGWIN__)
-	rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_32BIT|MAP_PRIVATE|MAP_ANONYMOUS|MAP_LOCKED, -1, 0);
+	app.rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_32BIT|MAP_PRIVATE|MAP_ANONYMOUS|MAP_LOCKED, -1, 0);
 #elif defined(__APPLE__)
-	rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
+	app.rtmem.area = mmap(NULL, AREA_SIZE, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANON, -1, 0);
 #endif
-	rtmem.tlsf = tlsf_create_with_pool(rtmem.area, AREA_SIZE);
-	rtmem.pool = tlsf_get_pool(rtmem.tlsf);
+	app.rtmem.tlsf = tlsf_create_with_pool(app.rtmem.area, AREA_SIZE);
+	app.rtmem.pool = tlsf_get_pool(app.rtmem.tlsf);
 
-	uv_loop_t *loop = uv_default_loop();
+	app.loop = uv_default_loop();
 #if defined(USE_LUAJIT)
-	lua_State *L = luaL_newstate(); // use LuaJIT internal memory allocator
+	app.L = luaL_newstate(); // use LuaJIT internal memory allocator
 #else // Lua 5.1 or 5.2
-	lua_State *L = lua_newstate(_lua_alloc, NULL); // use TLSF memory allocator
+	app.L = lua_newstate(_lua_alloc, &app); // use TLSF memory allocator
 #endif
 
-	luaL_openlibs(L);
-	luaopen_json(L);
-	luaopen_osc(L);
-	luaopen_http(L);
-	luaopen_zip(L);
-	luaopen_rtmidi(L);
-	luaopen_iface(L);
-	luaopen_dns_sd(L);
-	lua_pop(L, 7);
-	lua_gc(L, LUA_GCSTOP, 0); // switch to manual garbage collection
+	luaL_openlibs(app.L);
+	luaopen_json(&app);
+	luaopen_osc(&app);
+	luaopen_http(&app);
+	luaopen_zip(&app);
+	luaopen_rtmidi(&app);
+	luaopen_iface(&app);
+	luaopen_dns_sd(&app);
+	lua_pop(app.L, 7);
+	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
 	
-	if(luaL_dofile(L, argv[1]))
-		fprintf(stderr, "main: %s\n", lua_tostring(L, -1));
+	if(luaL_dofile(app.L, argv[1]))
+		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
 	
 	int err;
-	sigint.data = L;
-	if((err = uv_signal_init(loop, &sigint)))
+	app.sigint.data = &app;
+	if((err = uv_signal_init(app.loop, &app.sigint)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
-	if((err = uv_signal_start(&sigint, _sig, SIGINT)))
+	if((err = uv_signal_start(&app.sigint, _sig, SIGINT)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 
-	sigterm.data = L;
-	if((err = uv_signal_init(loop, &sigterm)))
+	app.sigterm.data = &app;
+	if((err = uv_signal_init(app.loop, &app.sigterm)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
-	if((err = uv_signal_start(&sigterm, _sig, SIGTERM)))
+	if((err = uv_signal_start(&app.sigterm, _sig, SIGTERM)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 
 #if defined(SIGQUIT)
-	sigquit.data = L;
-	if((err = uv_signal_init(loop, &sigquit)))
+	app.sigquit.data = &app;
+	if((err = uv_signal_init(app.loop, &app.sigquit)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
-	if((err = uv_signal_start(&sigquit, _sig, SIGQUIT)))
+	if((err = uv_signal_start(&app.sigquit, _sig, SIGQUIT)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 #endif
 
-	uv_run(loop, UV_RUN_DEFAULT);
+	uv_run(app.loop, UV_RUN_DEFAULT);
 	
-	//_deinit(L);
-
-	tlsf_remove_pool(rtmem.tlsf, rtmem.pool);
-	tlsf_destroy(rtmem.tlsf);
+	tlsf_remove_pool(app.rtmem.tlsf, app.rtmem.pool);
+	tlsf_destroy(app.rtmem.tlsf);
 #if defined(__WINDOWS__)
-	free(rtmem.area);
+	free(app.rtmem.area);
 #else
-	munmap(rtmem.area, AREA_SIZE);
+	munmap(app.rtmem.area, AREA_SIZE);
 #endif
 
 	return 0;
