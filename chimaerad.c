@@ -21,8 +21,11 @@
 #include <chimaerad.h>
 
 // include Lua
+#define LUA_COMPAT_MODULE
 #include <lualib.h>
 #include <lauxlib.h>
+
+#include <portable_endian.h>
 
 #if !defined(__WINDOWS__)
 #	include <sys/mman.h>
@@ -56,7 +59,7 @@ rt_alloc(size_t len)
 	void *data = NULL;
 	
 	if(!(data = tlsf_malloc(rtmem.tlsf, len)))
-		; //FIXME
+		fprintf(stderr, "rt_alloc: out-of-memory\n");
 
 	return data;
 }
@@ -67,7 +70,7 @@ rt_realloc(size_t len, void *buf)
 	void *data = NULL;
 	
 	if(!(data =tlsf_realloc(rtmem.tlsf, buf, len)))
-		; //FIXME
+		fprintf(stderr, "rt_realloc: out-of-memory\n");
 
 	return data;
 }
@@ -133,7 +136,7 @@ main(int argc, char **argv)
 	uv_loop_t *loop = uv_default_loop();
 #if defined(USE_LUAJIT)
 	lua_State *L = luaL_newstate(); // use LuaJIT internal memory allocator
-#else
+#else // Lua 5.1 or 5.2
 	lua_State *L = lua_newstate(_lua_alloc, NULL); // use TLSF memory allocator
 #endif
 
@@ -146,7 +149,7 @@ main(int argc, char **argv)
 	luaopen_iface(L);
 	luaopen_dns_sd(L);
 	lua_pop(L, 7);
-	lua_gc(L, LUA_GCSTOP, 0);
+	lua_gc(L, LUA_GCSTOP, 0); // switch to manual garbage collection
 	
 	if(luaL_dofile(L, argv[1]))
 		fprintf(stderr, "main: %s\n", lua_tostring(L, -1));

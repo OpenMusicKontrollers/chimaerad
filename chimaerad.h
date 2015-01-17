@@ -20,6 +20,10 @@
 
 #include <lua.h>
 
+void * rt_alloc(size_t len);
+void * rt_realloc(size_t len, void *buf);
+void rt_free(void *buf);
+
 int luaopen_json(lua_State *L);
 int luaopen_osc(lua_State *L);
 int luaopen_http(lua_State *L);

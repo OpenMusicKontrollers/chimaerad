@@ -18,19 +18,18 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <chimaerad.h>
+
+#define LUA_COMPAT_MODULE
+#include <lua.h>
+#include <lauxlib.h>
+
 #include <uv.h>
 
 #include <inlist.h>
 
-#include <lua.h>
-#include <lauxlib.h>
-
 #include <osc.h>
 #include <osc_stream.h>
-
-extern void * rt_alloc(size_t len);
-extern void * rt_realloc(size_t len, void *buf);
-extern void rt_free(void *buf);
 
 typedef struct _mod_osc_t mod_osc_t;
 typedef struct _mod_msg_t mod_msg_t;
@@ -81,11 +80,19 @@ _send(lua_State *L)
 {
 	mod_osc_t *mod_osc = luaL_checkudata(L, 1, "mod_osc_t");
 
+	if(lua_gettop(L) < 4)
+		return 0;
+
 	osc_time_t tstamp = luaL_checknumber(L, 2);
 	const char *path = luaL_checkstring(L, 3);
 	const char *fmt = luaL_checkstring(L, 4);
 
+	if(!path || !fmt)
+		return 0;
+
 	mod_msg_t *msg = rt_alloc(sizeof(mod_msg_t));
+	if(!msg)
+		return 0;
 	osc_data_t *buf = msg->buf;
 	osc_data_t *ptr = buf;
 	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;
@@ -185,8 +192,16 @@ _send(lua_State *L)
 		}
 
 	int is_empty = mod_osc->messages == NULL ? 1 : 0;
-	msg->len = ptr - buf;
-	mod_osc->messages = inlist_append(mod_osc->messages, INLIST_GET(msg));
+
+	if(ptr)
+	{
+		msg->len = ptr - buf;
+		if(msg->len > 0)
+			mod_osc->messages = inlist_append(mod_osc->messages, INLIST_GET(msg));
+		else
+			rt_free(msg);
+	}
+
 	if(is_empty)
 		_trigger(mod_osc);
 
@@ -197,6 +212,9 @@ static int
 _gc(lua_State *L)
 {
 	mod_osc_t *mod_osc = luaL_checkudata(L, 1, "mod_osc_t");
+
+	if(!mod_osc)
+		return 0;
 
 	osc_stream_deinit(&mod_osc->stream);
 	mod_osc->L = NULL;
@@ -274,10 +292,16 @@ _message(osc_data_t *buf, size_t len, void *data)
 					osc_blob_t b;
 					ptr = osc_get_blob(ptr, &b);
 					mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + b.size);
-					luaL_getmetatable(L, "mod_blob_t");
-					lua_setmetatable(L, -2);
-					tb->size = b.size;
-					memcpy(tb->buf, b.payload, b.size);
+					if(tb)
+					{
+						tb->size = b.size;
+						memcpy(tb->buf, b.payload, b.size);
+						
+						luaL_getmetatable(L, "mod_blob_t");
+						lua_setmetatable(L, -2);
+					}
+					else
+						lua_pushnil(L);
 					break;
 				}
 				
@@ -362,7 +386,6 @@ static void
 _on_recv(osc_stream_t *stream, osc_data_t *buf, size_t len, void *data)
 {
 	mod_osc_t *mod_osc = data;
-	lua_State *L = mod_osc->L;
 
 	if(!osc_unroll_packet(buf, len, OSC_UNROLL_MODE_FULL, (osc_unroll_inject_t *)&inject, mod_osc))
 		fprintf(stderr, "invalid OSC packet\n");
@@ -377,27 +400,28 @@ _new(lua_State *L)
 	int has_callback = lua_gettop(L) > 1; //TODO check whether this is callable
 
 	mod_osc_t *mod_osc = lua_newuserdata(L, sizeof(mod_osc_t));
+	if(!mod_osc)
+		goto fail;
 	memset(mod_osc, 0, sizeof(mod_osc_t));
 	mod_osc->L = L;
 
 	if(osc_stream_init(loop, &mod_osc->stream, url, _on_recv, _on_sent, mod_osc))
-	{
-		lua_pop(L, 1);
-		lua_pushnil(L);
-	}
-	else
-	{
-		luaL_getmetatable(L, "mod_osc_t");
-		lua_setmetatable(L, -2);
+		goto fail;
 
-		if(has_callback)
-		{
-			lua_pushlightuserdata(L, mod_osc);
-			lua_pushvalue(L, 2); // push callback
-			lua_rawset(L, LUA_REGISTRYINDEX);
-		}
+	luaL_getmetatable(L, "mod_osc_t");
+	lua_setmetatable(L, -2);
+
+	if(has_callback)
+	{
+		lua_pushlightuserdata(L, mod_osc);
+		lua_pushvalue(L, 2); // push callback
+		lua_rawset(L, LUA_REGISTRYINDEX);
 	}
 
+	return 1;
+
+fail:
+	lua_pushnil(L);
 	return 1;
 }
 
@@ -406,11 +430,18 @@ _blob(lua_State *L)
 {
 	int size = luaL_checkint(L, 1);
 	mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + size);
-	luaL_getmetatable(L, "mod_blob_t");
-	lua_setmetatable(L, -2);
+	if(!tb)
+		goto fail;
 	tb->size = size;
 	memset(tb->buf, 0, size);
+	
+	luaL_getmetatable(L, "mod_blob_t");
+	lua_setmetatable(L, -2);
 
+	return 1;
+
+fail:
+	lua_pushnil(L);
 	return 1;
 }
 

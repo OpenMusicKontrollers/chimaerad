@@ -17,6 +17,9 @@
 
 #include <stdlib.h>
 
+#include <chimaerad.h>
+
+#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 

@@ -18,42 +18,41 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <chimaerad.h>
+
+#define LUA_COMPAT_MODULE
+#include <lua.h>
+#include <lauxlib.h>
+
 #include <uv.h>
 
 #include <inlist.h>
 
-#include <lua.h>
-#include <lauxlib.h>
-
 #include <http_parser.h>
 
-extern void * rt_alloc(size_t len);
-extern void * rt_realloc(size_t len, void *buf);
-extern void rt_free(void *buf);
+typedef struct _server_t server_t;
+typedef struct _client_t client_t;
 
-typedef struct _mod_http_t mod_http_t;
-typedef struct _http_client_t http_client_t;
-
-struct _mod_http_t {
+struct _server_t {
 	lua_State *L;
 	uv_tcp_t http_server;
-	Inlist *http_clients;
+	Inlist *clients;
 	http_parser_settings http_settings;
 };
 
-struct _http_client_t {
+struct _client_t {
 	INLIST;
 	uv_tcp_t handle;
 	http_parser parser;
 	uv_write_t req;
 
-	mod_http_t *mod_http;
+	server_t *server;
 };
 
 static int
 _send(lua_State *L)
 {
-	mod_http_t *mod_http = luaL_checkudata(L, 1, "mod_http_t");
+	server_t *server = luaL_checkudata(L, 1, "server_t");
 
 	//TODO
 	return 0;
@@ -62,31 +61,31 @@ _send(lua_State *L)
 static void
 _on_client_close(uv_handle_t *handle)
 {
-	http_client_t *client = handle->data;
-	mod_http_t *mod_http = client->mod_http;
+	client_t *client = handle->data;
+	server_t *server = client->server;
 
-	mod_http->http_clients = inlist_remove(mod_http->http_clients, INLIST_GET(client));
+	server->clients = inlist_remove(server->clients, INLIST_GET(client));
 	rt_free(client);
 }
 
 static int
 _gc(lua_State *L)
 {
-	mod_http_t *mod_http = luaL_checkudata(L, 1, "mod_http_t");
+	server_t *server = luaL_checkudata(L, 1, "server_t");
 
 	// close http clients
 	Inlist *l;
-	http_client_t *client;
-	INLIST_FOREACH_SAFE(mod_http->http_clients, l, client)
+	client_t *client;
+	INLIST_FOREACH_SAFE(server->clients, l, client)
 	{
-		mod_http->http_clients = inlist_remove(mod_http->http_clients, INLIST_GET(client));
+		server->clients = inlist_remove(server->clients, INLIST_GET(client));
 		uv_close((uv_handle_t *)&client->handle, _on_client_close);
 	}
 
 	// deinit http server
-	uv_close((uv_handle_t *)&mod_http->http_server, NULL);
+	uv_close((uv_handle_t *)&server->http_server, NULL);
 
-	lua_pushlightuserdata(L, mod_http);
+	lua_pushlightuserdata(L, server);
 	lua_pushnil(L);
 	lua_rawset(L, LUA_REGISTRYINDEX);
 
@@ -103,7 +102,7 @@ void
 _after_write(uv_write_t *req, int status)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)req->handle;
-	http_client_t *client = handle->data;
+	client_t *client = handle->data;
 
 	uv_close((uv_handle_t *)handle, _on_client_close);
 }
@@ -111,11 +110,11 @@ _after_write(uv_write_t *req, int status)
 static int
 _on_url(http_parser *parser, const char *at, size_t len)
 {
-	http_client_t *client = parser->data;
-	mod_http_t *mod_http = client->mod_http;
-	lua_State *L = mod_http->L;
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
 
-	lua_pushlightuserdata(L, mod_http);
+	lua_pushlightuserdata(L, server);
 	lua_rawget(L, LUA_REGISTRYINDEX);
 	if(!lua_isnil(L, -1))
 	{
@@ -159,12 +158,12 @@ static void
 _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)stream;
-	http_client_t *client = handle->data;
-	mod_http_t *mod_http = client->mod_http;
+	client_t *client = handle->data;
+	server_t *server = client->server;
 
 	if(nread >= 0)
 	{
-		size_t parsed = http_parser_execute(&client->parser, &mod_http->http_settings, buf->base, nread);
+		size_t parsed = http_parser_execute(&client->parser, &server->http_settings, buf->base, nread);
 
 		if(parsed < nread)
 		{
@@ -187,15 +186,15 @@ _on_connected(uv_stream_t *handle, int status)
 {
 	int err;
 
-	mod_http_t *mod_http = handle->data;
+	server_t *server = handle->data;
 	//TODO check status
 
-	http_client_t *client = rt_alloc(sizeof(http_client_t));
+	client_t *client = rt_alloc(sizeof(client_t));
 	if(!client)
 		return;
 
-	client->mod_http = mod_http;
-	mod_http->http_clients = inlist_append(mod_http->http_clients, INLIST_GET(client));
+	client->server = server;
+	server->clients = inlist_append(server->clients, INLIST_GET(client));
 
 	if((err = uv_tcp_init(handle->loop, &client->handle)))
 	{
@@ -229,15 +228,15 @@ _new(lua_State *L)
 	uint16_t port = luaL_checkint(L, 1);
 	int has_callback = lua_gettop(L) > 1; //TODO check whether this is callable
 
-	mod_http_t *mod_http = lua_newuserdata(L, sizeof(mod_http_t));
-	memset(mod_http, 0, sizeof(mod_http_t));
-	mod_http->L = L;
+	server_t *server = lua_newuserdata(L, sizeof(server_t));
+	memset(server, 0, sizeof(server_t));
+	server->L = L;
 	
-	mod_http->http_settings.on_url = _on_url;
-	mod_http->http_server.data = mod_http;
+	server->http_settings.on_url = _on_url;
+	server->http_server.data = server;
 
 	int err;
-	if((err = uv_tcp_init(loop, &mod_http->http_server)))
+	if((err = uv_tcp_init(loop, &server->http_server)))
 	{
 		fprintf(stderr, "uv_tcp_init: %s\n", uv_strerror(err));
 		return -1;
@@ -252,13 +251,13 @@ _new(lua_State *L)
 		return -1;
 	}
 
-	if((err = uv_tcp_bind(&mod_http->http_server, addr, 0)))
+	if((err = uv_tcp_bind(&server->http_server, addr, 0)))
 	{
 		fprintf(stderr, "bind: %s\n", uv_strerror(err));
 		return -1;
 	}
 
-	if((err = uv_listen((uv_stream_t *)&mod_http->http_server, 128, _on_connected)))
+	if((err = uv_listen((uv_stream_t *)&server->http_server, 128, _on_connected)))
 	{
 		fprintf(stderr, "listen %s\n", uv_strerror(err));
 		return -1;
@@ -271,12 +270,12 @@ _new(lua_State *L)
 	}
 	else
 	{
-		luaL_getmetatable(L, "mod_http_t");
+		luaL_getmetatable(L, "server_t");
 		lua_setmetatable(L, -2);
 
 		if(has_callback)
 		{
-			lua_pushlightuserdata(L, mod_http);
+			lua_pushlightuserdata(L, server);
 			lua_pushvalue(L, 2); // push callback
 			lua_rawset(L, LUA_REGISTRYINDEX);
 		}
@@ -293,7 +292,7 @@ static const luaL_Reg lhttp [] = {
 int
 luaopen_http(lua_State *L)
 {
-	luaL_newmetatable(L, "mod_http_t");
+	luaL_newmetatable(L, "server_t");
 	luaL_register(L, NULL, lmt);
 	lua_pop(L, 1);
 

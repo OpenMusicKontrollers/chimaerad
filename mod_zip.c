@@ -18,6 +18,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <chimaerad.h>
+
+#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -25,10 +28,6 @@
 #	define ZIP_EXTERN __declspec(dllexport) // needed for static linking with mingw-w64
 #endif
 #include <zip.h>
-
-extern void * rt_alloc(size_t len);
-extern void * rt_realloc(size_t len, void *buf);
-extern void rt_free(void *buf);
 
 typedef struct _mod_zip_t mod_zip_t;
 
@@ -40,30 +39,33 @@ static int
 _read(lua_State *L)
 {
 	mod_zip_t *mod_zip = luaL_checkudata(L, 1, "mod_zip_t");
+	if(!mod_zip)
+		goto fail;
+
 	const char *path = luaL_checkstring(L, 2);
 
 	struct zip_stat stat;
 	if(zip_stat(mod_zip->io, path, 0, &stat))
-		goto err;
+		goto fail;
 	size_t fsize = stat.size;
 
 	struct zip_file *f = zip_fopen(mod_zip->io, path, 0);
 	if(!f)
-		goto err;
+		goto fail;
 	
 	char *str = rt_alloc(fsize + 1);
 	if(!str)
-		goto err;
+		goto fail;
 
 	if(zip_fread(f, str, fsize) == -1)
-		goto err;
+		goto fail;
 	zip_fclose(f);
 	str[fsize] = 0;
 
 	lua_pushlstring(L, str, fsize);
 	return 1;
 
-err:
+fail:
 	if(str)
 		rt_free(str);
 	if(f)
@@ -78,7 +80,8 @@ _gc(lua_State *L)
 {
 	mod_zip_t *mod_zip = luaL_checkudata(L, 1, "mod_zip_t");
 
-	zip_close(mod_zip->io);
+	if(mod_zip && mod_zip->io)
+		zip_close(mod_zip->io);
 
 	return 0;
 }
@@ -95,6 +98,8 @@ _new(lua_State *L)
 	const char *path = luaL_checkstring(L, 1);
 
 	mod_zip_t *mod_zip = lua_newuserdata(L, sizeof(mod_zip_t));
+	if(!mod_zip)
+		goto fail;
 	memset(mod_zip, 0, sizeof(mod_zip_t));
 
 	int err;
@@ -110,6 +115,10 @@ _new(lua_State *L)
 		lua_setmetatable(L, -2);
 	}
 
+	return 1;
+
+fail:
+	lua_pushnil(L);
 	return 1;
 }
 
