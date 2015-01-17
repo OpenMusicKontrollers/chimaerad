@@ -16,6 +16,7 @@
  */
 
 #include <stdio.h>
+#include <string.h>
 
 // include main header
 #include <chimaerad.h>
@@ -27,8 +28,17 @@
 
 #include <portable_endian.h>
 
-#if !defined(__WINDOWS__)
+#if defined(__WINDOWS__)
+#	include <avrt.h>
+#else
 #	include <sys/mman.h>
+#	include <sched.h>
+#	include <pthread.h>
+#	if defined(__APPLE__)
+#		include <mach/thread_policy.h>
+#		include <mach/thread_act.h>
+#		include <CoreAudio/HostTime.h>
+#	endif
 #endif
 
 #define AREA_SIZE 0x2000000UL // 32MB TODO increase dynamically
@@ -50,6 +60,56 @@ _lua_alloc(void *ud, void *ptr, size_t osize, size_t nsize)
 		else
 			return tlsf_malloc(app->rtmem.tlsf, nsize);
 	}
+}
+
+static int
+_thread_rtprio(int priority)
+{
+#if defined(__WINDOWS__)
+	int mcss_sched_priority;
+	mcss_sched_priority = priority > 50 ? AVRT_PRIORITY_CRITICAL : (priority > 0 ? AVRT_PRIORITY_HIGH : AVRT_PRIORITY_NORMAL); // TODO when to use CRITICAL?
+
+	// Multimedia Class Scheduler Service
+	DWORD dummy = 0;
+	HANDLE task = AvSetMmThreadCharacteristics("Pro Audio", &dummy);
+	if(!task)
+		fprintf(stderr, "AvSetMmThreadCharacteristics error: %d\n", GetLastError());
+	else if(!AvSetMmThreadPriority(task, mcss_sched_priority))
+		fprintf(stderr, "AvSetMmThreadPriority error: %d\n", GetLastError());
+
+#else
+	pthread_t self = pthread_self();
+
+	struct sched_param schedp;
+	memset(&schedp, 0, sizeof(struct sched_param));
+	schedp.sched_priority = priority;
+	
+	if(schedp.sched_priority)
+	{
+		if(pthread_setschedparam(self, SCHED_RR, &schedp))
+			fprintf(stderr, "pthread_setschedparam error\n");
+	}
+
+	/* //FIXME
+#	if defined(__APPLE__)
+	thread_time_constraint_policy_data_t ttcpolicy;
+	thread_port_t threadport = pthread_mach_thread_np(pthread_self());
+
+	uint64_t period = 333333; // 1 s / 48000 * 16 
+	uint64_t computation = 100000; // 0.1 ms = 100000 ns
+	uint64_t constraint = 500000; // 0.5 ms  = 500000 ns
+	ttcpolicy.period = AudioConvertNanosToHost(period);
+	ttcpolicy.computation = AudioConvertNanosToHost(computation);
+	ttcpolicy.constraint = AudioConvertNanosToHost(constraint);
+	ttcpolicy.preemptible = 1;
+
+	if(thread_policy_set(threadport, THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&ttcpolicy, THREAD_TIME_CONSTRAINT_COUNT) != KERN_SUCCESS)
+		fprintf(stderr, "thread_policy_set failed.\n");
+#	endif
+	*/
+#endif
+
+	return 0;
 }
 
 static void
@@ -129,6 +189,7 @@ main(int argc, char **argv)
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
 #endif
 
+	_thread_rtprio(60); //TODO make this configurable
 	uv_run(app.loop, UV_RUN_DEFAULT);
 	
 	tlsf_remove_pool(app.rtmem.tlsf, app.rtmem.pool);
