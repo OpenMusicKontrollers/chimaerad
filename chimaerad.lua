@@ -263,23 +263,37 @@ setmetatable(content_type, {
 		return 'Content-Type: application/octet-stream\r\n\r\n'
 	end})
 
-http = HTTP.new(9000, function(client, url)
-	if(url:find('/%?')) then
-		client(code[200] .. content_type['json'] .. '{"success":false}')
-	else
-		if(url == '/') then
-			url = '/index.html'
-		end
+local wait_for_body = false
+http = HTTP.new(9000, function(client, event, data)
+	print(event, data)
 
-		local index = url:find('%.[^%.]*$')
-		local file = url:sub(2, index-1)
-		local suffix = url:sub(index+1)
-
-		local chunk = zip(file .. '.' .. suffix)
-		if(chunk) then
-			client(code[200] .. content_type[suffix] .. chunk)
+	if(event == 'url') then
+		local url = data
+			
+		if(url == '/?') then
+			wait_for_body = true
 		else
-			client(code[404])
+			if(url == '/') then
+				url = '/index.html'
+			end
+
+			local index = url:find('%.[^%.]*$')
+			local file = url:sub(2, index-1)
+			local suffix = url:sub(index+1)
+
+			local chunk = zip(file .. '.' .. suffix)
+			if(chunk) then
+				client(code[200] .. content_type[suffix] .. chunk)
+			else
+				client(code[404])
+			end
+		end
+	elseif(event == 'body') then
+		local body = data
+
+		if(wait_for_body) then
+			client(code[200] .. content_type['json'] .. '{"success":false}')
+			wait_for_body = false
 		end
 	end
 end)

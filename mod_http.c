@@ -153,11 +153,42 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	{
 		lua_pushlightuserdata(L, client);
 		lua_rawget(L, LUA_REGISTRYINDEX);
+		lua_pushstring(L, "url");
 		lua_pushlstring(L, at, len);
 
-		if(lua_pcall(L, 2, 0, 0))
+		if(lua_pcall(L, 3, 0, 0))
 		{
 			fprintf(stderr, "_on_url: %s\n", lua_tostring(L, -1));
+			lua_pop(L, 1);
+		}
+	}
+	else
+		lua_pop(L, 1);
+		
+	lua_gc(L, LUA_GCCOLLECT, 0);
+
+	return 0;
+}
+
+static int
+_on_body(http_parser *parser, const char *at, size_t len)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	lua_pushlightuserdata(L, server);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+	if(!lua_isnil(L, -1))
+	{
+		lua_pushlightuserdata(L, client);
+		lua_rawget(L, LUA_REGISTRYINDEX);
+		lua_pushstring(L, "body");
+		lua_pushlstring(L, at, len);
+
+		if(lua_pcall(L, 3, 0, 0))
+		{
+			fprintf(stderr, "_on_body: %s\n", lua_tostring(L, -1));
 			lua_pop(L, 1);
 		}
 	}
@@ -269,6 +300,7 @@ _new(lua_State *L)
 
 	server->app = app;
 	server->http_settings.on_url = _on_url;
+	server->http_settings.on_body = _on_body;
 	server->http_server.data = server;
 
 	int err;
