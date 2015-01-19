@@ -133,6 +133,28 @@ _sig(uv_signal_t *handle, int signum)
 }
 
 int
+_zip_loader(lua_State *L)
+{
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
+	const char *module = luaL_checkstring(L, 1);
+
+	char key [256];
+	sprintf(key, "%s.lua", module);
+
+	size_t size;
+	char *chunk = zip_read(app, key, &size);
+	if(chunk)
+	{
+		//printf("_zip_loader: %s %zu\n", key, size);
+		luaL_loadbuffer(L, chunk, size, module);
+		rt_free(app, chunk);
+		return 1;
+	}
+
+	return 0;
+}
+
+int
 main(int argc, char **argv)
 {
 	static app_t app;
@@ -164,11 +186,31 @@ main(int argc, char **argv)
 	luaopen_dns_sd(&app);
 	lua_pop(app.L, 7);
 	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
-	
-	if(luaL_dofile(app.L, argv[1]))
-		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
-	
+
 	int err;
+	app.io = zip_open(argv[1], ZIP_CHECKCONS, &err);
+	if(!app.io)
+		fprintf(stderr, "zip_open: %i\n", err);
+	
+	// overwrite loader functions with our own
+	lua_getglobal(app.L, "package");
+	{
+		lua_newtable(app.L);
+		{
+			lua_pushlightuserdata(app.L, &app);
+			lua_pushcclosure(app.L, _zip_loader, 1);
+			lua_rawseti(app.L, -2, 1);
+		}
+		lua_setfield(app.L, -2, "loaders");
+	}
+	lua_pop(app.L, 1); // package
+	
+	if(luaL_dostring(app.L, "require('main')"))
+	{
+		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
+		lua_pop(app.L, 1);
+	}
+	
 	app.sigint.data = &app;
 	if((err = uv_signal_init(app.loop, &app.sigint)))
 		fprintf(stderr, "uv error: %s\n", uv_err_name(err));
@@ -191,6 +233,9 @@ main(int argc, char **argv)
 
 	_thread_rtprio(60); //TODO make this configurable
 	uv_run(app.loop, UV_RUN_DEFAULT);
+
+	if(app.io)
+		zip_close(app.io);
 	
 	tlsf_remove_pool(app.rtmem.tlsf, app.rtmem.pool);
 	tlsf_destroy(app.rtmem.tlsf);

@@ -158,6 +158,7 @@ set(ZIP_SOURCES
 	${PROJECT_SOURCE_DIR}/Abel.woff2
 	${PROJECT_SOURCE_DIR}/chimaerad.js
 	${PROJECT_SOURCE_DIR}/content.html
+	${PROJECT_SOURCE_DIR}/main.lua
 	${PROJECT_SOURCE_DIR}/dummy.lua
 	${PROJECT_SOURCE_DIR}/favicon.png
 	${PROJECT_SOURCE_DIR}/index.html

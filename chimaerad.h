@@ -24,6 +24,11 @@
 // include TLSF
 #include <tlsf.h>
 
+#if (defined(_WIN16) || defined(_WIN32) || defined(_WIN64)) && !defined(__WINDOWS__)
+#	define ZIP_EXTERN __declspec(dllexport) // needed for static linking with mingw-w64
+#endif
+#include <zip.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -44,6 +49,7 @@ struct _app_t {
 	uv_loop_t *loop;
 	lua_State *L;
 	rtmem_t rtmem;
+	struct zip *io;
 
 	uv_signal_t sigint;
 	uv_signal_t sigterm;
@@ -69,6 +75,8 @@ rt_free(app_t *app, void *buf)
 {
 	tlsf_free(app->rtmem.tlsf, buf);
 }
+
+char *zip_read(app_t *app, const char *key, size_t *size);
 
 int luaopen_json(app_t *app);
 int luaopen_osc(app_t *app);

@@ -24,33 +24,15 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-#if (defined(_WIN16) || defined(_WIN32) || defined(_WIN64)) && !defined(__WINDOWS__)
-#	define ZIP_EXTERN __declspec(dllexport) // needed for static linking with mingw-w64
-#endif
-#include <zip.h>
-
-typedef struct _mod_zip_t mod_zip_t;
-
-struct _mod_zip_t {
-	struct zip *io;
-};
-
-static int
-_call(lua_State *L)
+char *
+zip_read(app_t *app, const char *key, size_t *size)
 {
-	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
-	mod_zip_t *mod_zip = luaL_checkudata(L, 1, "mod_zip_t");
-	if(!mod_zip)
-		goto fail;
-
-	const char *path = luaL_checkstring(L, 2);
-
 	struct zip_stat stat;
-	if(zip_stat(mod_zip->io, path, 0, &stat))
+	if(zip_stat(app->io, key, 0, &stat))
 		goto fail;
 	size_t fsize = stat.size;
 
-	struct zip_file *f = zip_fopen(mod_zip->io, path, 0);
+	struct zip_file *f = zip_fopen(app->io, key, 0);
 	if(!f)
 		goto fail;
 	
@@ -63,8 +45,8 @@ _call(lua_State *L)
 	zip_fclose(f);
 	str[fsize] = 0;
 
-	lua_pushlstring(L, str, fsize);
-	return 1;
+	*size = fsize;
+	return str;
 
 fail:
 	if(str)
@@ -72,59 +54,33 @@ fail:
 	if(f)
 		zip_fclose(f);
 
-	lua_pushnil(L);
-	return 1;
+	*size = 0;
+	return NULL;
 }
 
 static int
-_gc(lua_State *L)
+_call(lua_State *L)
 {
-	mod_zip_t *mod_zip = luaL_checkudata(L, 1, "mod_zip_t");
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 
-	if(mod_zip && mod_zip->io)
-		zip_close(mod_zip->io);
+	const char *key = luaL_checkstring(L, 1);
 
-	return 0;
-}
+	size_t size;
+	char *chunk = zip_read(app, key, &size);
 
-static const luaL_Reg lmt [] = {
-	{"__call", _call},
-	{"__gc", _gc},
-	{NULL, NULL}
-};
-
-static int
-_new(lua_State *L)
-{
-	const char *path = luaL_checkstring(L, 1);
-
-	mod_zip_t *mod_zip = lua_newuserdata(L, sizeof(mod_zip_t));
-	if(!mod_zip)
-		goto fail;
-	memset(mod_zip, 0, sizeof(mod_zip_t));
-
-	int err;
-	mod_zip->io = zip_open(path, ZIP_CHECKCONS, &err);
-	if(!mod_zip->io)
+	if(chunk)
 	{
-		fprintf(stderr, "zip_open: %i\n", err);
-		lua_pushnil(L);
+		lua_pushlstring(L, chunk, size);
+		rt_free(app, chunk);
 	}
 	else
-	{
-		luaL_getmetatable(L, "mod_zip_t");
-		lua_setmetatable(L, -2);
-	}
+		lua_pushnil(L);
 
-	return 1;
-
-fail:
-	lua_pushnil(L);
 	return 1;
 }
 
 static const luaL_Reg lzip [] = {
-	{"new", _new},
+	{"read", _call},
 	{NULL, NULL}
 };
 
@@ -132,11 +88,6 @@ int
 luaopen_zip(app_t *app)
 {
 	lua_State *L = app->L;
-
-	luaL_newmetatable(L, "mod_zip_t");
-	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, lmt, 1);
-	lua_pop(L, 1);
 
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, "ZIP", lzip, 1);		
