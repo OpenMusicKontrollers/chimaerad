@@ -15,6 +15,7 @@ include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
 
+set(APP_DIR share/chimaerad)
 set(LIBS -lm)
 
 if(WIN32)
@@ -141,6 +142,7 @@ target_link_libraries(chimaerad ${LIBS})
 if(USE_LUAJIT)
 	target_compile_definitions(chimaerad PUBLIC -DUSE_LUAJIT)
 endif()
+target_compile_definitions(chimaerad PUBLIC -DAPP_DIR=${APP_DIR})
 install(TARGETS chimaerad DESTINATION bin)
 
 find_program(ZIP_BIN NAMES zip)
@@ -151,29 +153,29 @@ else()
 endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
-	${PROJECT_SOURCE_DIR}/COPYING
-	${PROJECT_SOURCE_DIR}/Berenika-Bold.ttf
-	${PROJECT_SOURCE_DIR}/Berenika-Bold.woff
-	${PROJECT_SOURCE_DIR}/Abel.woff
-	${PROJECT_SOURCE_DIR}/Abel.woff2
-	${PROJECT_SOURCE_DIR}/chimaerad.js
-	${PROJECT_SOURCE_DIR}/content.html
-	${PROJECT_SOURCE_DIR}/main.lua
-	${PROJECT_SOURCE_DIR}/dummy.lua
-	${PROJECT_SOURCE_DIR}/favicon.png
-	${PROJECT_SOURCE_DIR}/index.html
-	${PROJECT_SOURCE_DIR}/jquery-1.11.2.min.js
-	${PROJECT_SOURCE_DIR}/logo.png
-	${PROJECT_SOURCE_DIR}/style.css
-	${PROJECT_SOURCE_DIR}/ace/ace.js
-	${PROJECT_SOURCE_DIR}/ace/mode-lua.js
-	${PROJECT_SOURCE_DIR}/ace/theme-clouds_midnight.js
-	${PROJECT_SOURCE_DIR}/ace/worker-lua.js)
+	COPYING
+	Berenika-Bold.ttf
+	Berenika-Bold.woff
+	Abel.woff
+	Abel.woff2
+	chimaerad.js
+	content.html
+	main.lua
+	dummy.lua
+	favicon.png
+	index.html
+	jquery-1.11.2.min.js
+	logo.png
+	style.css
+	ace/ace.js
+	ace/mode-lua.js
+	ace/theme-clouds_midnight.js
+	ace/worker-lua.js)
 
 add_custom_command(
 	OUTPUT ${PROJECT_BINARY_DIR}/app.zip
-	COMMAND ${ZIP_BIN} ARGS -j ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
-	MAIN_DEPENDENCY
-		${ZIP_SOURCES})
+	COMMAND ${ZIP_BIN} ARGS -p ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
+	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+	DEPENDS ${ZIP_SOURCES})
 add_custom_target(CONTAINER ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
-#install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${DEST})
+install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${APP_DIR})
