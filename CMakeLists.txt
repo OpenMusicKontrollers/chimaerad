@@ -153,29 +153,39 @@ else()
 endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
-	COPYING
-	Berenika-Bold.ttf
-	Berenika-Bold.woff
-	Abel.woff
-	Abel.woff2
-	chimaerad.js
-	content.html
-	main.lua
-	dummy.lua
-	favicon.png
 	index.html
-	jquery-1.11.2.min.js
-	logo.png
 	style.css
+
+	chimaerad.js
+	jquery-1.11.2.min.js
+
+	main.lua
+	class.lua
+	httpd.lua
+	dns_sd.lua
+	
+	font/Berenika-Bold.ttf
+	font/Berenika-Bold.woff
+	font/Abel.woff
+	font/Abel.woff2
+
+	img/favicon.png
+	img/logo.png
+
 	ace/ace.js
 	ace/mode-lua.js
 	ace/theme-clouds_midnight.js
 	ace/worker-lua.js)
 
+set(ZIP_DEPENDS "")
+foreach(f ${ZIP_SOURCES})
+	list(APPEND ZIP_DEPENDS app/${f})
+endforeach()
+
 add_custom_command(
 	OUTPUT ${PROJECT_BINARY_DIR}/app.zip
 	COMMAND ${ZIP_BIN} ARGS -p ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
-	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
-	DEPENDS ${ZIP_SOURCES})
+	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/app
+	DEPENDS ${ZIP_DEPENDS})
 add_custom_target(CONTAINER ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
 install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${APP_DIR})

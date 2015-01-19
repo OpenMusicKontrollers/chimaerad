@@ -145,7 +145,7 @@ _zip_loader(lua_State *L)
 	char *chunk = zip_read(app, key, &size);
 	if(chunk)
 	{
-		//printf("_zip_loader: %s %zu\n", key, size);
+		printf("_zip_loader: %s %zu\n", key, size);
 		luaL_loadbuffer(L, chunk, size, module);
 		rt_free(app, chunk);
 		return 1;
@@ -192,7 +192,7 @@ main(int argc, char **argv)
 	if(!app.io)
 		fprintf(stderr, "zip_open: %i\n", err);
 	
-	// overwrite loader functions with our own
+	// overwrite loader functions with our own FIXME only works for LuaJIT & Lua5.1
 	lua_getglobal(app.L, "package");
 	{
 		lua_newtable(app.L);
@@ -201,7 +201,11 @@ main(int argc, char **argv)
 			lua_pushcclosure(app.L, _zip_loader, 1);
 			lua_rawseti(app.L, -2, 1);
 		}
+#if LUA_VERSION_NUM >= 502
+		lua_setfield(app.L, -2, "searchers");
+#else
 		lua_setfield(app.L, -2, "loaders");
+#endif
 	}
 	lua_pop(app.L, 1); // package
 	

@@ -7,16 +7,16 @@
 
 @font-face {
 	font-family: 'BerenikaBold';
-  src:	url('/Berenika-Bold.woff') format('woff'),
-				url('/Berenika-Bold.ttf') format('truetype');
+  src:	url('/font/Berenika-Bold.woff') format('woff'),
+				url('/font/Berenika-Bold.ttf') format('truetype');
 	font-weight: bold;
 	font-style: normal;
 }
 
 @font-face {
 	font-family: 'Abel';
-	src:	url('/Abel.woff2') format('woff2'),
-				url('/Abel.woff') format('woff');
+	src:	url('/font/Abel.woff2') format('woff2'),
+				url('/font/Abel.woff') format('woff');
 	font-weight: normal;
 	font-style: normal;
 }
@@ -28,6 +28,7 @@ body {
 	font-style:normal;
   margin:20px;
   padding:0px;
+	color:#fff;
   background-color:#222;
 }
 
@@ -35,10 +36,8 @@ h1 {
   font-family:'BerenikaBold', sans-serif;
 	font-size:60px;
 	font-weight:bold;
-	text-align: right;
   margin:0px 0px 10px 0px;
   padding:0px;
-  color:#000;
 }
 
 .content {
@@ -46,10 +45,16 @@ h1 {
   width:auto;
   width:800px;
   margin:10px auto 10px auto;
-  background-color:#fff;
 	border-radius: 20px;
   padding:10px;
   z-index:3; /* This allows the content to overlap the right menu in narrow windows in good browsers. */
+}
+
+.brand {
+	position:fixed;
+	bottom:0px;
+	left:0px;
+	margin:10px;
 }
 
 p {

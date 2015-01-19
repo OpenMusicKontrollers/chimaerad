@@ -27,16 +27,20 @@
 char *
 zip_read(app_t *app, const char *key, size_t *size)
 {
+	char *str = NULL;
+	struct zip_file *f = NULL;
 	struct zip_stat stat;
+	size_t fsize;
+
 	if(zip_stat(app->io, key, 0, &stat))
 		goto fail;
-	size_t fsize = stat.size;
+	fsize = stat.size;
 
-	struct zip_file *f = zip_fopen(app->io, key, 0);
+	f = zip_fopen(app->io, key, 0);
 	if(!f)
 		goto fail;
 	
-	char *str = rt_alloc(app, fsize + 1);
+	str = rt_alloc(app, fsize + 1);
 	if(!str)
 		goto fail;
 
