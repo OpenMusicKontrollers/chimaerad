@@ -31,10 +31,61 @@ $.postJSON = function(data) {
 	return $.ajax(dup);
 }
 
+var devices = {}
 var connected = true;
+
+function devices_toggle(e) {
+	var key = $(this).attr('id');
+	var device = devices[key];
+
+	if(!device)
+		return;
+
+	$('#devices_target').html(device.target);
+	$('#devices_fullname').html(device.fullname);
+	$('#devices_port').html(device.port);
+	$('#devices_interface').html(device.interface);
+
+	$('#devices_txt_uri').html(device.txt.uri);
+	$('#devices_txt_reset').html(device.txt.reset);
+	var claim = [];
+	if(device.txt.static)
+		claim.push('static');
+	else {
+		if(device.txt.ipv4ll)
+			claim.push('IPv4LL');
+		if(device.txt.dhcp)
+			claim.push('DHCP');
+	}
+	$('#devices_txt_claim').html(claim.join(', '));
+	$('#devices_version').html(device.version);
+	$('#devices_address').html(device.address);
+	$('#devices_reachable').html(device.reachable ? 'yes' : 'no (you need to reconfigure the device IP)');
+	
+	$('.devices').show();
+}
+
 var events = {
+	'/ifaces/list': function(data, status) {
+		var itm = [];
+		$.each(data, function(i, conf) {
+			if(!conf.internal && (conf.version == 'inet'))
+				itm.push(conf.name + ' (' + conf.address + ')');
+		});
+		$('#ifaces_list').html(itm.join(', '));
+	},
+
 	'/dns_sd/browse': function(data, status) {
-		console.log('dns_sd event');
+		var itm = [];
+		$.each(data, function(key, conf) {
+			devices[key] = conf;
+			itm.push('<a href="#" id="' + key + '">' + key + '</a>');
+		});
+		$('#devices_list').html(itm.join(', '));
+		$.each(data, function(key, conf) {
+			$('a[id="'+key+'"]').click(devices_toggle);
+		});
+		$('.devices').hide();
 	}
 }
 
@@ -53,7 +104,7 @@ function update(data) {
 				var reply = data.reply;
 				var cb = events[reply.request];
 				if(cb !== undefined)
-					cb(reply, status);
+					cb(reply.data, status);
 			};
 		}
 	});
@@ -65,10 +116,18 @@ function keepalive() {
 	if(!connected)
 	{
 		$('#daemon_status').html('disconnected (<i>check whether the "chimaerad" daemon is up and running and then refresh this page)</i>.');
+
+		$('.lists').hide();
+		devices = {};
+		$('.devices').hide();
 		return;
 	}
 	else
+	{
 		$('#daemon_status').html('connected');
+
+		$('.lists').show();
+	}
 
 	$.postJSON({
 		url: '/?',
@@ -92,5 +151,6 @@ function keepalive() {
 
 $(document).ready(function() {
 	keepalive();
+	update({'request': '/ifaces/list'});
 	update({'request': '/dns_sd/browse'});
 });

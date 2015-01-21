@@ -32,7 +32,7 @@ _list(lua_State *L)
 	int count;
 	int err;
 	uv_interface_addresses(&ifaces, &count);
-	lua_createtable(L, 0, count);
+	lua_createtable(L, count, 0);
 
 	for(int i=0; i<count; i++)
 	{
@@ -40,8 +40,11 @@ _list(lua_State *L)
 		char buffer[INET6_ADDRSTRLEN];
 		char hmac [18]; // "xx:xx:xx:xx:xx:xx\0"
 
-		lua_createtable(L, 0, 3);
+		lua_createtable(L, 0, 6);
 		{
+			lua_pushstring(L, ifaces[1].name);
+			lua_setfield(L, -2, "name");
+
 			lua_pushboolean(L, iface->is_internal);
 			lua_setfield(L, -2, "internal");
 
@@ -54,6 +57,12 @@ _list(lua_State *L)
 				lua_pushstring(L, buffer);
 				lua_setfield(L, -2, "address");
 			}
+
+			if(iface->netmask.netmask4.sin_family == AF_INET)
+				lua_pushstring(L, "inet");
+			else
+				lua_pushstring(L, "inet6");
+			lua_setfield(L, -2, "version");
 
 			if(iface->netmask.netmask4.sin_family == AF_INET)
 				err = uv_inet_ntop(AF_INET, &ifaces[i].netmask.netmask4.sin_addr.s_addr, buffer, sizeof(buffer));
@@ -71,7 +80,7 @@ _list(lua_State *L)
 			lua_setfield(L, -2, "mac");
 		}
 
-		lua_setfield(L, -2, ifaces[i].name);
+		lua_rawseti(L, -2, i+1);
 	}
 	uv_free_interface_addresses(ifaces, count);
 

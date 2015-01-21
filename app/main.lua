@@ -23,12 +23,27 @@ local chimaerad = class:new({
 	port = 9000,
 
 	init = function(self)
+		self.ifaces = IFACE.list()
+
 		self.httpd = httpd:new({
 			port = port,
 			
 			['/dns_sd/browse'] = function(httpd, client)
 				print('/dns_sd/browse method')
+
+				for _, v in ipairs(self.ifaces) do
+					for k, w in pairs(self.db) do
+						if(v.version == w.version) then
+							w.reachable = IFACE.check(v.version, v.address, v.netmask, w.address)
+						end
+					end
+				end
 				httpd:json(client, {success=true, reply={request='/dns_sd/browse', data=self.db}})
+			end,
+
+			['/ifaces/list'] = function(httpd, client)
+				print('/ifaces/list method')
+				httpd:json(client, {success=true, reply={request='/ifaces/list', data=self.ifaces}})
 			end
 		})
 
@@ -41,3 +56,5 @@ local chimaerad = class:new({
 })
 
 local app = chimaerad:new({})
+
+return app

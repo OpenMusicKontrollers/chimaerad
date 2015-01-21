@@ -145,7 +145,7 @@ _zip_loader(lua_State *L)
 	char *chunk = zip_read(app, key, &size);
 	if(chunk)
 	{
-		printf("_zip_loader: %s %zu\n", key, size);
+		//printf("_zip_loader: %s %zu\n", key, size);
 		luaL_loadbuffer(L, chunk, size, module);
 		rt_free(app, chunk);
 		return 1;
@@ -209,7 +209,7 @@ main(int argc, char **argv)
 	}
 	lua_pop(app.L, 1); // package
 	
-	if(luaL_dostring(app.L, "require('main')"))
+	if(luaL_dostring(app.L, "_main = require('main')"))
 	{
 		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
 		lua_pop(app.L, 1);

@@ -35,7 +35,15 @@ local dns_sd = class:new({
 		self.query_cb = function(err, reply)
 			if(err) then return end
 
-			--TODO
+			for k, v in pairs(reply) do
+				--print(k, v)
+				self.db[reply.target][k] = self.db[reply.target][k] or v
+			end
+			--print()
+
+			if(callback) then
+				callback(self.db)
+			end
 
 			self.query[reply.target] = nil
 		end
@@ -43,33 +51,40 @@ local dns_sd = class:new({
 		self.resolve_cb = function(err, reply)
 			if(err) then return end
 
-			if(reply.txt.uri == 'http://open-music-kontrollers.ch/chimaera') then
-				self.db[reply.fullname] = reply
+			--for k, v in pairs(reply) do
+			--	print(k, v)
+			--end
+			--print()
+
+			if(reply.txt and reply.txt.uri and reply.txt.uri == 'http://open-music-kontrollers.ch/chimaera') then
+				self.db[reply.target] = reply
 				self.query[reply.target] = DNS_SD.query(reply, self.query_cb)
-			
-				if(callback) then
-					callback(self.db)
-				end
 			else
-				self.db[reply.fullname] = nil
+				self.db[reply.target] = nil
 			end
 
-			self.resolve[reply.fullname] = nil
+			self.resolve[reply.target] = nil
 		end
 
 		self.browse_cb = function(err, reply)
 			if(err) then return end
 
-			local fullname = reply.name .. '.' .. reply.type .. reply.domain
+			local target = reply.name .. '.' .. reply.domain
+			local fullname = reply.name .. '.' .. reply.type .. '.' .. reply.domain
+
+			--for k, v in pairs(reply) do
+			--	print(k, v)
+			--end
+			--print()
 
 			if(reply.add) then
-				self.db[fullname] = {}
-				self.resolve[fullname] = DNS_SD.resolve(reply, self.resolve_cb)
-				self.query[fullname] = nil
+				self.db[target] = {}
+				self.resolve[target] = DNS_SD.resolve(reply, self.resolve_cb)
+				self.query[target] = nil
 			else
-				self.db[fullname] = nil
-				self.resolve[fullname] = nil
-				self.query[fullname] = nil
+				self.db[target] = nil
+				self.resolve[target] = nil
+				self.query[target] = nil
 
 				if(callback) then
 					callback(self.db)

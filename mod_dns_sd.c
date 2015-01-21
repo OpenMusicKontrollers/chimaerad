@@ -86,6 +86,14 @@ _poll_cb(uv_poll_t *poll, int status, int flags)
 		fprintf(stderr, "_poll_cb: dns_sd (%i)\n", err);
 }
 
+static inline size_t
+_strlen_dot(const char *str)
+{
+	size_t len = strlen(str);
+
+	return str[len-1] == '.' ? len-1 : len;
+}
+
 static void DNSSD_API
 _browse_cb(
 	DNSServiceRef				ref,
@@ -129,13 +137,13 @@ _browse_cb(
 				lua_setfield(L, -2, "interface");
 #endif
 
-				lua_pushstring(L, name);
+				lua_pushlstring(L, name, _strlen_dot(name));
 				lua_setfield(L, -2, "name");
 
-				lua_pushstring(L, type);
+				lua_pushlstring(L, type, _strlen_dot(type));
 				lua_setfield(L, -2, "type");
 
-				lua_pushstring(L, domain);
+				lua_pushlstring(L, domain, _strlen_dot(domain));
 				lua_setfield(L, -2, "domain");
 			}
 		}
@@ -255,10 +263,10 @@ _resolve_cb(
 				lua_setfield(L, -2, "interface");
 #endif
 
-				lua_pushstring(L, fullname);
+				lua_pushlstring(L, fullname, _strlen_dot(fullname));
 				lua_setfield(L, -2, "fullname");
 
-				lua_pushstring(L, target);
+				lua_pushlstring(L, target, _strlen_dot(target));
 				lua_setfield(L, -2, "target");
 
 				lua_pushnumber(L, be16toh(port));
@@ -406,7 +414,7 @@ _query_cb(
 				lua_setfield(L, -2, "interface");
 #endif
 
-				lua_pushstring(L, target);
+				lua_pushlstring(L, target, _strlen_dot(target));
 				lua_setfield(L, -2, "target");
 
 				if(rrtype == kDNSServiceType_A)
