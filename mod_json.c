@@ -29,6 +29,8 @@
 
 #include <cJSON.h>
 
+static app_t *app_ptr; //FIXME try to circumvent static global
+
 // forward declaration
 static cJSON * _encode_item(lua_State *L, int idx);
 
@@ -100,18 +102,24 @@ _encode_item(lua_State *L, int idx)
 static int
 _encode(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
+
 	if(lua_istable(L, 1) && !lua_objlen(L, 1))
 	{
 		cJSON *root = _encode_object(L, 1);
 		char *json = cJSON_PrintUnformatted(root);
+		lua_pushnil(L); // no error
 		lua_pushstring(L, json);
-		free(json);
+		rt_free(app, json);
 		cJSON_Delete(root);
 	}
 	else
+	{
+		lua_pushstring(L, "not a object table");
 		lua_pushnil(L);
+	}
 
-	return 1;
+	return 2;
 }
 
 // forward declaration
@@ -180,10 +188,20 @@ _decode(lua_State *L)
 	const char *root_str = luaL_checkstring(L, 1);
 
 	cJSON *root = cJSON_Parse(root_str);
-	_decode_object(L, root);
-	cJSON_Delete(root);
+	if(root)
+	{
+		lua_pushnil(L); // no error
+		_decode_object(L, root);
+		cJSON_Delete(root);
+	}
+	else
+	{
+		const char *err = cJSON_GetErrorPtr();
+		lua_pushstring(L, err);
+		lua_pushnil(L);
+	}
 
-	return 1;
+	return 2;
 }
 
 static const luaL_Reg ljson [] = {
@@ -192,10 +210,29 @@ static const luaL_Reg ljson [] = {
 	{NULL, NULL}
 };
 
+static void *
+_malloc_fn(size_t size)
+{
+	return rt_alloc(app_ptr, size);
+}
+
+static void
+_free_fn(void *ptr)
+{
+	rt_free(app_ptr, ptr);
+}
+
 int
 luaopen_json(app_t *app)
 {
 	lua_State *L = app->L;
+
+	app_ptr = app;
+	cJSON_Hooks hooks = {
+		.malloc_fn = _malloc_fn,
+		.free_fn = _free_fn
+	};
+	cJSON_InitHooks(&hooks);
 
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, "JSON", ljson, 1);

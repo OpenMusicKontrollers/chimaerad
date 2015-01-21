@@ -55,14 +55,20 @@ local httpd = class:new({
 			local item = table.remove(self.queue, 1)
 
 			for _, client in ipairs(self.clients) do
-				client(code[200] .. content_type['json'] .. JSON.encode(item))
+				local err, str = JSON.encode(item)
+				if(not err) then
+					client(code[200] .. content_type['json'] .. str)
+				end
 			end
 			self.clients = {}
 		end
 	end,
 
 	json = function(self, client, data)
-		client(code[200] .. content_type['json'] .. JSON.encode(data))
+		local err, str =  JSON.encode(data)
+		if(not err) then
+			client(code[200] .. content_type['json'] .. str)
+		end
 	end,
 
 	['/keepalive'] = function(self, client)
@@ -102,7 +108,7 @@ local httpd = class:new({
 				local body = data
 
 				if(self.wait_for_json) then
-					local json = JSON.decode(body)
+					local err, json = JSON.decode(body)
 	
 					local meth = self[json.request]
 					if(meth) then meth(self, client) end
