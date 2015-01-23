@@ -23,6 +23,7 @@ local chimaerad = class:new({
 	port = 9000,
 
 	init = function(self)
+		self.db = {}
 		self.ifaces = IFACE.list()
 
 		self.httpd = httpd:new({
