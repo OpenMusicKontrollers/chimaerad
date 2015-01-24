@@ -194,6 +194,7 @@ main(int argc, char **argv)
 	
 	// overwrite loader functions with our own FIXME only works for LuaJIT & Lua5.1
 	lua_getglobal(app.L, "package");
+	if(lua_istable(app.L, -1))
 	{
 		lua_newtable(app.L);
 		{

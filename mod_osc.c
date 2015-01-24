@@ -517,7 +517,7 @@ static const luaL_Reg lblob [] = {
 int
 luaopen_osc(app_t *app)
 {
-	lua_State *L = L;
+	lua_State *L = app->L;
 
 	luaL_newmetatable(L, "mod_osc_t");
 	lua_pushvalue(L, -1);
