@@ -96,6 +96,14 @@ function devices_toggle(e) {
 	$('#devices_change').off('click').on('click', devices_change);
 	
 	$('.devices').show();
+	
+	$('#comms_mode_udp').prop('checked', device.mode == 'osc.udp');
+	$('#comms_mode_tcp').prop('checked', device.mode == 'osc.tcp');
+
+	if(device.reachable)
+		$('.comms').show();
+	else
+		$('.comms').hide();
 }
 
 var events = {
@@ -119,6 +127,7 @@ var events = {
 			$('a[id="'+key+'"]').click(devices_toggle);
 		});
 		$('.devices').hide();
+		$('.comms').hide();
 	}
 }
 
@@ -153,6 +162,7 @@ function keepalive() {
 		$('.lists').hide();
 		devices = {};
 		$('.devices').hide();
+		$('.comms').hide();
 		return;
 	}
 	else

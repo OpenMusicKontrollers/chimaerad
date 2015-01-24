@@ -53,7 +53,7 @@ h1 {
 .brand {
 	position:fixed;
 	bottom:0px;
-	left:0px;
+	right:0px;
 	margin:10px;
 }
 

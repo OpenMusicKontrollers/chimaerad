@@ -163,6 +163,7 @@ set(ZIP_SOURCES
 	class.lua
 	httpd.lua
 	dns_sd.lua
+	dummy.lua
 	
 	font/Berenika-Bold.ttf
 	font/Berenika-Bold.woff

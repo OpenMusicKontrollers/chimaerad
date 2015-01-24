@@ -56,8 +56,16 @@
 					<td><input id="devices_address" type="text" value=""></td>
 				</tr>
 				<tr class="devices" hidden><td><b>IP reachable</b></td><td>:</td><td id="devices_reachable"></td></tr>
-				<tr class="devices" hidden><td><b></b></td><td>:</td>
+				<tr class="devices" hidden> <td></td> <td>:</td>
 					<td><input id="devices_change" type="button" value="change"></td>
+				</tr>
+				
+				<tr class="comms" hidden><td><b></b></td><td>:</td><td></td></tr>
+
+				<tr class="comms" hidden><td><b>Comm Mode</b></td><td>:</td><td>
+					<input name="comms_mode" id="comms_mode_udp" type="radio" value="udp">UDP</input>
+					<input name="comms_mode" id="comms_mode_tcp" type="radio" value="tcp">TCP</input>
+				</td>
 				</tr>
 
 			</table>
