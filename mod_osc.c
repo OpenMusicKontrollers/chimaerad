@@ -222,6 +222,14 @@ _gc(lua_State *L)
 
 	osc_stream_deinit(&mod_osc->stream);
 	mod_osc->L = NULL;
+	
+	Inlist *l;
+	mod_msg_t *msg;
+	INLIST_FOREACH_SAFE(mod_osc->messages, l, msg)
+	{
+		mod_osc->messages = inlist_remove(mod_osc->messages, INLIST_GET(msg));
+		rt_free(msg->app, msg);
+	}
 
 	lua_pushlightuserdata(L, mod_osc);
 	lua_pushnil(L);
@@ -233,6 +241,7 @@ _gc(lua_State *L)
 static const luaL_Reg lmt [] = {
 	{"__call", _send},
 	{"__gc", _gc},
+	{"close", _gc},
 	{NULL, NULL}
 };
 
@@ -511,11 +520,15 @@ luaopen_osc(app_t *app)
 	lua_State *L = L;
 
 	luaL_newmetatable(L, "mod_osc_t");
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, NULL, lmt, 1);
 	lua_pop(L, 1);
 	
 	luaL_newmetatable(L, "mod_blob_t");
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, NULL, lblob, 1);
 	lua_pop(L, 1);

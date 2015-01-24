@@ -38,10 +38,9 @@ setmetatable(content_type, {
 
 local httpd = class:new({
 	-- global
-	port = 9000,
+	port = 8080,
 
 	-- private
-	wait_for_json = false,
 	clients = nil,
 	queue = nil,
 
@@ -58,6 +57,8 @@ local httpd = class:new({
 				local err, str = JSON.encode(item)
 				if(not err) then
 					client(code[200] .. content_type['json'] .. str)
+				else
+					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON encoding'}))
 				end
 			end
 			self.clients = {}
@@ -68,6 +69,8 @@ local httpd = class:new({
 		local err, str =  JSON.encode(data)
 		if(not err) then
 			client(code[200] .. content_type['json'] .. str)
+		else
+			client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON encoding'}))
 		end
 	end,
 
@@ -80,40 +83,39 @@ local httpd = class:new({
 		self.queue = {}
 		self.clients = {}
 
-		self.io = HTTP.new(self.port, function(client, event, data)
-			--print(event, data)
+		self.io = HTTP.new(self.port, function(client, data)
+			if(data.url == '/?') then
+				if(data.body) then
+					local err, json = JSON.decode(data.body)
+					if(not err) then
+						local meth = self[json.request]
 
-			if(event == 'url') then
-				local url = data
-					
-				if(url == '/?') then
-					self.wait_for_json = true
-				else
-					if(url == '/') then
-						url = '/index.html'
-					end
-
-					local index = url:find('%.[^%.]*$')
-					local file = url:sub(2, index-1)
-					local suffix = url:sub(index+1)
-
-					local chunk = ZIP.read(file .. '.' .. suffix)
-					if(chunk) then
-						client(code[200] .. content_type[suffix] .. chunk)
+						if(meth) then
+							meth(self, client, json.data)
+						else
+							client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='method missing'}))
+						end
 					else
-						client(code[404])
+						client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON decoding'}))
 					end
+				else
+					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='body missing'}))
 				end
-			elseif(event == 'body') then
-				local body = data
 
-				if(self.wait_for_json) then
-					local err, json = JSON.decode(body)
-	
-					local meth = self[json.request]
-					if(meth) then meth(self, client) end
+			else
+				if(data.url == '/') then
+					data.url = '/index.html'
+				end
 
-					self.wait_for_json = false
+				local index = data.url:find('%.[^%.]*$')
+				local file = data.url:sub(2, index-1)
+				local suffix = data.url:sub(index+1)
+
+				local chunk = ZIP.read(file .. '.' .. suffix)
+				if(chunk) then
+					client(code[200] .. content_type[suffix] .. chunk)
+				else
+					client(code[404])
 				end
 			end
 		end)

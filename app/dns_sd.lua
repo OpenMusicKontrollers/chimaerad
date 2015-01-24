@@ -17,53 +17,55 @@
 
 local class = require('class')
 
---[[
-local uri
-if(reply.fullname:find('_osc._udp.')) then
-	uri = string.format('osc.udp://%s:%i', reply.target, reply.port)
-else
-	uri = string.format('osc.tcp://%s:%i', reply.target, reply.port)
-end
---]]
-
 local dns_sd = class:new({
 	init = function(self, callback)
 		self.db = {}
 		self.resolve = {}
-		self.query = {}
+		self.monitor_ip = {}
+		self.monitor_txt = {}
 
-		self.query_cb = function(err, reply)
+		self.monitor_ip_cb = function(err, reply)
 			if(err) then return end
 
-			for k, v in pairs(reply) do
-				--print(k, v)
-				self.db[reply.target][k] = self.db[reply.target][k] or v
+			if(reply.add) then
+				for k, v in pairs(reply) do
+					self.db[reply.fullname][k] = v -- update entries
+				end
 			end
-			--print()
 
-			if(callback) then
+			if(not reply.more_coming and callback) then
 				callback(self.db)
 			end
+		end
 
-			self.query[reply.target] = nil
+		self.monitor_txt_cb = function(err, reply)
+			if(err) then return end
+
+			if(reply.add) then
+				for k, v in pairs(reply) do
+					self.db[reply.fullname][k] = v -- update entries
+				end
+			end
+
+			if(not reply.more_coming and callback) then
+				callback(self.db)
+			end
 		end
 
 		self.resolve_cb = function(err, reply)
 			if(err) then return end
 
-			--for k, v in pairs(reply) do
-			--	print(k, v)
-			--end
-			--print()
-
 			if(reply.txt and reply.txt.uri and reply.txt.uri == 'http://open-music-kontrollers.ch/chimaera') then
-				self.db[reply.target] = reply
-				self.query[reply.target] = DNS_SD.query(reply, self.query_cb)
+				for k, v in pairs(reply) do
+					self.db[reply.fullname][k] = v -- update entries
+				end
+				self.monitor_ip[reply.fullname] = DNS_SD.monitor_ip(reply, self.monitor_ip_cb)
+				self.monitor_txt[reply.fullname] = DNS_SD.monitor_txt(reply, self.monitor_txt_cb)
 			else
-				self.db[reply.target] = nil
+				self.db[reply.fullname] = nil
 			end
 
-			self.resolve[reply.target] = nil
+			self.resolve[reply.fullname] = nil
 		end
 
 		self.browse_cb = function(err, reply)
@@ -72,19 +74,37 @@ local dns_sd = class:new({
 			local target = reply.name .. '.' .. reply.domain
 			local fullname = reply.name .. '.' .. reply.type .. '.' .. reply.domain
 
-			--for k, v in pairs(reply) do
-			--	print(k, v)
-			--end
-			--print()
-
 			if(reply.add) then
-				self.db[target] = {}
-				self.resolve[target] = DNS_SD.resolve(reply, self.resolve_cb)
-				self.query[target] = nil
-			else
-				self.db[target] = nil
-				self.resolve[target] = nil
-				self.query[target] = nil
+				if(self.resolve[fullname]) then
+					self.resolve[fullname]:close()
+				end
+				if(self.monitor_ip[fullname]) then
+					self.monitor_ip[fullname]:close()
+				end
+				if(self.monitor_txt[fullname]) then
+					self.monitor_txt[fullname]:close()
+				end
+
+				self.db[fullname] = {name = reply.name}
+				self.resolve[fullname] = DNS_SD.resolve(reply, self.resolve_cb)
+				self.monitor_ip[fullname] = nil
+				self.monitor_txt[fullname] = nil
+
+			else -- not reply.add
+				if(self.resolve[fullname]) then
+					self.resolve[fullname]:close()
+				end
+				if(self.monitor_ip[fullname]) then
+					self.monitor_ip[fullname]:close()
+				end
+				if(self.monitor_txt[fullname]) then
+					self.monitor_txt[fullname]:close()
+				end
+
+				self.db[fullname] = nil
+				self.resolve[fullname] = nil
+				self.monitor_ip[fullname] = nil
+				self.monitor_txt[fullname] = nil
 
 				if(callback) then
 					callback(self.db)

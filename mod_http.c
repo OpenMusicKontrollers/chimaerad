@@ -137,11 +137,42 @@ _server_gc(lua_State *L)
 
 static const luaL_Reg lserver [] = {
 	{"__gc", _server_gc},
+	{"close", _server_gc},
 	{NULL, NULL}
 };
 
 static int
-_on_url(http_parser *parser, const char *at, size_t len)
+_on_message_begin(http_parser *parser)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	lua_pushlightuserdata(L, parser);
+	lua_newtable(L);
+
+	lua_newtable(L);
+	lua_setfield(L, -2, "header");
+
+	lua_rawset(L, LUA_REGISTRYINDEX);
+
+	return 0;
+}
+
+static int
+_on_headers_complete(http_parser *parser)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	// do nothing
+
+	return 0;
+}
+
+static int
+_on_message_complete(http_parser *parser)
 {
 	client_t *client = parser->data;
 	server_t *server = client->server;
@@ -153,19 +184,95 @@ _on_url(http_parser *parser, const char *at, size_t len)
 	{
 		lua_pushlightuserdata(L, client);
 		lua_rawget(L, LUA_REGISTRYINDEX);
-		lua_pushstring(L, "url");
-		lua_pushlstring(L, at, len);
 
-		if(lua_pcall(L, 3, 0, 0))
+		lua_pushlightuserdata(L, parser);
+		lua_rawget(L, LUA_REGISTRYINDEX);
+
+		if(lua_pcall(L, 2, 0, 0))
 		{
-			fprintf(stderr, "_on_url: %s\n", lua_tostring(L, -1));
+			fprintf(stderr, "_on_message_complete: %s\n", lua_tostring(L, -1));
 			lua_pop(L, 1);
 		}
 	}
 	else
 		lua_pop(L, 1);
+
+	// free temporary table
+	lua_pushlightuserdata(L, parser);
+	lua_pushnil(L);
+	lua_rawset(L, LUA_REGISTRYINDEX);
 		
 	lua_gc(L, LUA_GCCOLLECT, 0);
+
+	return 0;
+}
+
+static int
+_on_header_field(http_parser *parser, const char *at, size_t len)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	lua_pushlightuserdata(L, parser);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+
+	lua_getfield(L, -1, "header");
+
+	lua_pushlstring(L, at, len);
+	lua_pushboolean(L, 0);
+	lua_rawset(L, -3);
+
+	lua_pop(L, 2);
+
+	return 0;
+}
+
+static int
+_on_header_value(http_parser *parser, const char *at, size_t len)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	lua_pushlightuserdata(L, parser);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+
+	lua_getfield(L, -1, "header");
+	
+	lua_pushnil(L);
+	while(lua_next(L, -2))
+	{
+		if(lua_type(L, -1) == LUA_TBOOLEAN)
+		{
+			lua_pop(L, 1); // pop false
+			lua_pushlstring(L, at, len);
+			lua_rawset(L, -3);
+			break;
+		}
+
+		lua_pop(L, 1);
+	}
+
+	lua_pop(L, 2);
+
+	return 0;
+}
+
+static int
+_on_url(http_parser *parser, const char *at, size_t len)
+{
+	client_t *client = parser->data;
+	server_t *server = client->server;
+	lua_State *L = server->L;
+
+	lua_pushlightuserdata(L, parser);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+
+	lua_pushlstring(L, at, len);
+	lua_setfield(L, -2, "url");
+
+	lua_pop(L, 1);
 
 	return 0;
 }
@@ -177,25 +284,13 @@ _on_body(http_parser *parser, const char *at, size_t len)
 	server_t *server = client->server;
 	lua_State *L = server->L;
 
-	lua_pushlightuserdata(L, server);
+	lua_pushlightuserdata(L, parser);
 	lua_rawget(L, LUA_REGISTRYINDEX);
-	if(!lua_isnil(L, -1))
-	{
-		lua_pushlightuserdata(L, client);
-		lua_rawget(L, LUA_REGISTRYINDEX);
-		lua_pushstring(L, "body");
-		lua_pushlstring(L, at, len);
 
-		if(lua_pcall(L, 3, 0, 0))
-		{
-			fprintf(stderr, "_on_body: %s\n", lua_tostring(L, -1));
-			lua_pop(L, 1);
-		}
-	}
-	else
-		lua_pop(L, 1);
-		
-	lua_gc(L, LUA_GCCOLLECT, 0);
+	lua_pushlstring(L, at, len);
+	lua_setfield(L, -2, "body");
+
+	lua_pop(L, 1);
 
 	return 0;
 }
@@ -299,7 +394,13 @@ _new(lua_State *L)
 	server->L = L;
 
 	server->app = app;
+	server->http_settings.on_message_begin = _on_message_begin;
+	server->http_settings.on_message_complete= _on_message_complete;
+	server->http_settings.on_headers_complete= _on_headers_complete;
+
 	server->http_settings.on_url = _on_url;
+	server->http_settings.on_header_field = _on_header_field;
+	server->http_settings.on_header_value = _on_header_value;
 	server->http_settings.on_body = _on_body;
 	server->http_server.data = server;
 
@@ -356,11 +457,15 @@ luaopen_http(app_t *app)
 	lua_State *L = app->L;
 
 	luaL_newmetatable(L, "server_t");
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, NULL, lserver, 1);
 	lua_pop(L, 1);
 	
 	luaL_newmetatable(L, "client_t");
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, NULL, lclient, 1);
 	lua_pop(L, 1);

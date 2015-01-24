@@ -1,0 +1,10 @@
+#!/bin/sh
+
+cmd=$(command -v xdg-open || command -v open)
+$cmd http://localhost:8080
+
+if [ "$#" -ne 1 ] || ! [ -f "$1" ]; then
+	./chimaerad app.zip
+else
+	./chimaerad "$1"
+fi

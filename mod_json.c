@@ -47,6 +47,8 @@ _encode_array(lua_State *L, int idx)
 		cJSON *item = _encode_item(L, -1);
 		if(item)
 			cJSON_AddItemToArray(arr, item);
+		else
+			fprintf(stderr, " at %i\n", pos);
 
 		lua_pop(L, 1);
 	}
@@ -67,6 +69,8 @@ _encode_object(lua_State *L, int idx)
 		cJSON *item = _encode_item(L, -1);
 		if(item)
 			cJSON_AddItemToObject(obj, name, item);
+		else
+			fprintf(stderr, " at %s\n", name);
 
 		lua_pop(L, 1);
 	}
@@ -93,7 +97,7 @@ _encode_item(lua_State *L, int idx)
 			else
 				return _encode_array(L, idx);
 		default:
-			fprintf(stderr, "cannot encode type\n");
+			fprintf(stderr, "cannot encode %s", lua_typename(L, idx));
 			return NULL;
 	}
 }
@@ -115,7 +119,7 @@ _encode(lua_State *L)
 	}
 	else
 	{
-		lua_pushstring(L, "not a object table");
+		lua_pushstring(L, "not an object table");
 		lua_pushnil(L);
 	}
 

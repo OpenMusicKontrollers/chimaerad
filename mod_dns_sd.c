@@ -47,6 +47,7 @@ struct _item_t {
 	uv_poll_t poll;
 	lua_State *L;
 	DNSServiceRef ref;
+	const char *fullname;
 };
 
 static int
@@ -71,6 +72,7 @@ _gc(lua_State *L)
 
 static const luaL_Reg litem [] = {
 	{"__gc", _gc},
+	{"close", _gc},
 	{NULL, NULL}
 };
 
@@ -375,7 +377,7 @@ fail:
 }
 
 static void DNSSD_API
-_query_cb(
+_query_ip_cb(
 	DNSServiceRef				ref,
 	DNSServiceFlags			flags,
 	uint32_t						iface,
@@ -406,13 +408,22 @@ _query_cb(
 		else
 		{
 			lua_pushnil(L);
-			lua_createtable(L, 0, 3);
+			lua_createtable(L, 0, 7);
 			{
+				lua_pushboolean(L, flags & kDNSServiceFlagsMoreComing);
+				lua_setfield(L, -2, "more_coming");
+
+				lua_pushboolean(L, flags & kDNSServiceFlagsAdd);
+				lua_setfield(L, -2, "add");
+
 #if defined(IF_NAMESIZE)
 				char if_name [IF_NAMESIZE];
 				lua_pushstring(L, if_indextoname(iface, if_name));
 				lua_setfield(L, -2, "interface");
 #endif
+
+				lua_pushstring(L, item->fullname);
+				lua_setfield(L, -2, "fullname");
 
 				lua_pushlstring(L, target, _strlen_dot(target));
 				lua_setfield(L, -2, "target");
@@ -446,24 +457,20 @@ _query_cb(
 
 		if(lua_pcall(L, 2, 0, 0))
 		{
-			fprintf(stderr, "_query_cb: %s\n", lua_tostring(L, -1));
+			fprintf(stderr, "_query_ip_cb: %s\n", lua_tostring(L, -1));
 			lua_pop(L, 1);
 		}
 	}
 	else
 		lua_pop(L, 1);
 
-	if(uv_is_active((uv_handle_t *)&item->poll))
-		uv_poll_stop(&item->poll);
-	if(item->ref)
-		DNSServiceRefDeallocate(item->ref);
-	item->ref = NULL;
+	// Query request are kept running to listen for IP changes
 
 	lua_gc(L, LUA_GCCOLLECT, 0);
 }
 
 static int
-_query(lua_State *L)
+_query_ip(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	int fd;
@@ -495,6 +502,10 @@ _query(lua_State *L)
 	const char *target = luaL_checkstring(L, -1);
 	lua_pop(L, 1);
 
+	lua_getfield(L, 1, "fullname");
+	item->fullname = luaL_checkstring(L, -1);
+	lua_pop(L, 1);
+
 	lua_getfield(L, 1, "version");
 	const char *af = luaL_optstring(L, -1, "inet");
 	lua_pop(L, 1);
@@ -505,9 +516,9 @@ _query(lua_State *L)
 	else if(!strcmp(af, "inet6"))
 		AF = kDNSServiceType_AAAA;
 
-	if((err = DNSServiceQueryRecord(&item->ref, flags, iface, target, AF, kDNSServiceClass_IN, _query_cb, item)) != kDNSServiceErr_NoError)
+	if((err = DNSServiceQueryRecord(&item->ref, flags, iface, target, AF, kDNSServiceClass_IN, _query_ip_cb, item)) != kDNSServiceErr_NoError)
 	{
-		fprintf(stderr, "_query: dns_sd (%i)\n", err);
+		fprintf(stderr, "_query_ip: dns_sd (%i)\n", err);
 		goto fail;
 	}
 	if((fd = DNSServiceRefSockFD(item->ref)) < 0)
@@ -516,12 +527,158 @@ _query(lua_State *L)
 	item->poll.data = item;
 	if((err = uv_poll_init_socket(app->loop, &item->poll, fd)))
 	{
-		fprintf(stderr, "_query: %s\n", uv_strerror(err));
+		fprintf(stderr, "_query_ip: %s\n", uv_strerror(err));
 		goto fail;
 	}
 	if((err = uv_poll_start(&item->poll, UV_READABLE, _poll_cb)))
 	{
-		fprintf(stderr, "_query: %s\n", uv_strerror(err));
+		fprintf(stderr, "_query_ip: %s\n", uv_strerror(err));
+		goto fail;
+	}
+
+	return 1;
+
+fail:
+	lua_pushnil(L);
+	return 1;
+}
+
+static void DNSSD_API
+_query_txt_cb(
+	DNSServiceRef				ref,
+	DNSServiceFlags			flags,
+	uint32_t						iface,
+	DNSServiceErrorType	err,
+	const char					*target,
+	uint16_t						rrtype,
+	uint16_t						rrclass,
+	uint16_t						rdlen,
+	const void					*rdata,
+	uint32_t						ttl,
+	void								*context)
+{
+	item_t *item = context;
+	if(!item)
+		return;
+
+	lua_State *L = item->L;
+
+	lua_pushlightuserdata(L, item);
+	lua_rawget(L, LUA_REGISTRYINDEX);
+	if(!lua_isnil(L, -1))
+	{
+		if(err)
+		{
+			lua_pushnumber(L, err);
+			lua_pushnil(L);
+		}
+		else
+		{
+			lua_pushnil(L);
+			lua_createtable(L, 0, 6);
+			{
+				lua_pushboolean(L, flags & kDNSServiceFlagsMoreComing);
+				lua_setfield(L, -2, "more_coming");
+
+				lua_pushboolean(L, flags & kDNSServiceFlagsAdd);
+				lua_setfield(L, -2, "add");
+
+#if defined(IF_NAMESIZE)
+				char if_name [IF_NAMESIZE];
+				lua_pushstring(L, if_indextoname(iface, if_name));
+				lua_setfield(L, -2, "interface");
+#endif
+
+				lua_pushstring(L, item->fullname);
+				lua_setfield(L, -2, "fullname");
+
+				lua_pushlstring(L, target, _strlen_dot(target));
+				lua_setfield(L, -2, "target");
+
+				int n = TXTRecordGetCount(rdlen, rdata);
+				lua_createtable(L, 0, n);
+				for(int i=0; i<n; i++)
+				{
+					char key [256];
+					uint8_t value_len;
+					const char *value;
+					TXTRecordGetItemAtIndex(rdlen, rdata, i, 256, key, &value_len, (void *)&value);
+
+					lua_pushlstring(L, value, value_len);
+					lua_setfield(L, -2, key);
+				}
+				lua_setfield(L, -2, "txt");
+			}
+		}
+
+		if(lua_pcall(L, 2, 0, 0))
+		{
+			fprintf(stderr, "_query_txt_cb: %s\n", lua_tostring(L, -1));
+			lua_pop(L, 1);
+		}
+	}
+	else
+		lua_pop(L, 1);
+
+	// Query request are kept running to listen for TXT changes
+
+	lua_gc(L, LUA_GCCOLLECT, 0);
+}
+
+static int
+_query_txt(lua_State *L)
+{
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
+	int fd;
+	int err;
+	DNSServiceFlags flags = 0;
+	item_t *item = lua_newuserdata(L, sizeof(item_t));
+	if(!item)
+		goto fail;
+	memset(item, 0, sizeof(item_t));
+	item->L = L;
+
+	luaL_getmetatable(L, "item_t");
+	lua_setmetatable(L, -2);
+
+	lua_pushlightuserdata(L, item);
+	lua_pushvalue(L, 2); // callback function
+	lua_rawset(L, LUA_REGISTRYINDEX);
+
+#if defined(IF_NAMESIZE)
+	lua_getfield(L, 1, "interface");
+	const char *if_name = luaL_optstring(L, -1, NULL);
+	uint32_t iface = if_name ? if_nametoindex(if_name) : 0;
+	lua_pop(L, 1);
+#else
+	uint32_t iface = 0;
+#endif
+
+	lua_getfield(L, 1, "target");
+	const char *target = luaL_checkstring(L, -1);
+	lua_pop(L, 1);
+
+	lua_getfield(L, 1, "fullname");
+	item->fullname = luaL_checkstring(L, -1);
+	lua_pop(L, 1);
+
+	if((err = DNSServiceQueryRecord(&item->ref, flags, iface, item->fullname, kDNSServiceType_TXT, kDNSServiceClass_IN, _query_txt_cb, item)) != kDNSServiceErr_NoError)
+	{
+		fprintf(stderr, "_query_txt: dns_sd (%i)\n", err);
+		goto fail;
+	}
+	if((fd = DNSServiceRefSockFD(item->ref)) < 0)
+		goto fail;
+
+	item->poll.data = item;
+	if((err = uv_poll_init_socket(app->loop, &item->poll, fd)))
+	{
+		fprintf(stderr, "_query_txt: %s\n", uv_strerror(err));
+		goto fail;
+	}
+	if((err = uv_poll_start(&item->poll, UV_READABLE, _poll_cb)))
+	{
+		fprintf(stderr, "_query_txt: %s\n", uv_strerror(err));
 		goto fail;
 	}
 
@@ -535,7 +692,8 @@ fail:
 static const luaL_Reg ldns_sd [] = {
 	{"browse", _browse},
 	{"resolve", _resolve},
-	{"query", _query},
+	{"monitor_ip", _query_ip},
+	{"monitor_txt", _query_txt},
 	{NULL, NULL}
 };
 
@@ -550,6 +708,8 @@ luaopen_dns_sd(app_t *app)
 #endif
 
 	luaL_newmetatable(L, "item_t");
+	lua_pushvalue(L, -1);
+	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
 	luaL_openlib(L, NULL, litem, 1);
 	lua_pop(L, 1);

@@ -32,15 +32,53 @@ $.postJSON = function(data) {
 }
 
 var devices = {}
+var device = undefined;
 var connected = true;
+
+$.postOSC = function(data) {
+	$.postJSON({
+		url: '/?',
+		data: data,
+		error: function(jqXHR, err) {
+			console.log(err);
+		},
+		success: function(data, status) {
+			console.log(JSON.stringify(data));
+		}
+	});
+}
+
+function devices_change(e) {
+	//TODO
+	var name = $('#devices_name').prop('value');
+	var ipv4ll = $('#devices_txt_claim_ipv4ll').prop('checked');
+	var dhcp = $('#devices_txt_claim_dhcp').prop('checked');
+	var static = $('#devices_txt_claim_static').prop('checked');
+	var address = $('#devices_address').prop('value');
+
+	console.log('devices_change', name, ipv4ll, dhcp, static, address);
+
+	$.postOSC({
+		'request': '/devices/change',
+		'data': {
+			'target': device.fullname,
+			'name': name,
+			'ipv4ll': ipv4ll ? 1 : null,
+			'dhcp': dhcp ? 1 : null,
+			'static': static ? 1 : null,
+			'address': address
+		}
+	});
+};
 
 function devices_toggle(e) {
 	var key = $(this).attr('id');
-	var device = devices[key];
+	device = devices[key];
 
 	if(!device)
 		return;
 
+	$('#devices_name').prop('value', device.name);
 	$('#devices_target').html(device.target);
 	$('#devices_fullname').html(device.fullname);
 	$('#devices_port').html(device.port);
@@ -48,19 +86,14 @@ function devices_toggle(e) {
 
 	$('#devices_txt_uri').html(device.txt.uri);
 	$('#devices_txt_reset').html(device.txt.reset);
-	var claim = [];
-	if(device.txt.static)
-		claim.push('static');
-	else {
-		if(device.txt.ipv4ll)
-			claim.push('IPv4LL');
-		if(device.txt.dhcp)
-			claim.push('DHCP');
-	}
-	$('#devices_txt_claim').html(claim.join(', '));
+	$('#devices_txt_claim_ipv4ll').prop('checked', device.txt.ipv4ll && !device.txt.dhcp)
+	$('#devices_txt_claim_dhcp').prop('checked', device.txt.dhcp);
+	$('#devices_txt_claim_static').prop('checked', device.txt.static);
 	$('#devices_version').html(device.version);
-	$('#devices_address').html(device.address);
+	$('#devices_address').prop('value', device.address);
+	$('#devices_address').prop('disabled', !device.txt.static);
 	$('#devices_reachable').html(device.reachable ? 'yes' : 'no (you need to reconfigure the device IP)');
+	$('#devices_change').off('click').on('click', devices_change);
 	
 	$('.devices').show();
 }
@@ -132,7 +165,7 @@ function keepalive() {
 	$.postJSON({
 		url: '/?',
 		data: {'request': '/keepalive'},
-		timeout: 10*1000,
+		timeout: 60*1000,
 		complete: keepalive,
 		error: function(jqXHR, err) {
 			if(err == 'timeout')
