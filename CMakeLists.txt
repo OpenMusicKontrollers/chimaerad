@@ -21,8 +21,8 @@ set(LIBS -lm)
 if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
 	set(CMAKE_C_FLAGS "-std=gnu99")
-	set(CMAKE_EXE_LINKER_FLAGS "-static")
-	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -lwinpthread")
+	set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
+	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -Wl,-Bstatic -lstdc++ -lwinpthread")
 elseif(APPLE)
 	if(CMAKE_SIZEOF_VOID_P MATCHES "8")
 		set(CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000")
@@ -185,7 +185,7 @@ endforeach()
 
 add_custom_command(
 	OUTPUT ${PROJECT_BINARY_DIR}/app.zip
-	COMMAND ${ZIP_BIN} ARGS -p ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
+	COMMAND ${ZIP_BIN} ARGS -0 -p ${PROJECT_BINARY_DIR}/app.zip ${ZIP_SOURCES}
 	WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/app
 	DEPENDS ${ZIP_DEPENDS})
 add_custom_target(CONTAINER ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)

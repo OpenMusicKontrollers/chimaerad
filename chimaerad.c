@@ -142,11 +142,11 @@ _zip_loader(lua_State *L)
 	sprintf(key, "%s.lua", module);
 
 	size_t size;
-	char *chunk = zip_read(app, key, &size);
+	uint8_t *chunk = zip_read(app, key, &size);
 	if(chunk)
 	{
 		//printf("_zip_loader: %s %zu\n", key, size);
-		luaL_loadbuffer(L, chunk, size, module);
+		luaL_loadbuffer(L, (char *)chunk, size, module);
 		rt_free(app, chunk);
 		return 1;
 	}

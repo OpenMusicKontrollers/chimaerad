@@ -20,125 +20,144 @@ local httpd = require('httpd')
 local dns_sd = require('dns_sd')
 local dummy = require('dummy')
 
+local function devices_change(self, httpd, client, data)
+	local w = self.db[data.target]
+	local conf = self.conf[data.target]
+
+	if(w and conf) then
+		if(data.name ~= w.name) then
+			conf(0, '/info/name', 'is', 13, data.name)
+		end
+
+		if(data.address ~= w.address) then
+			conf(0, '/comm/ip', 'is', 14, data.address .. '/24') -- FIXME netmask
+		end
+
+		data.ipv4ll = data.dhcp or data.ipv4ll -- enable ipv4ll together with dhcp
+
+		if(data.ipv4ll ~= w.txt.ipv4ll) then
+			conf(0, '/ipv4ll/enabled', 'ii', 15, (data.ipv4ll and 1) or 0)
+		end
+
+		if(data.dhcp ~= w.txt.dhcp) then
+			conf(0, '/dhcpc/enabled', 'ii', 16, (data.dhcp and 1) or 0)
+		end
+	end
+
+	-- FIXME only answer after OSC has been successful
+	httpd:json(client, {success=true, reply={request='/devices/change'}})
+end
+
+local function comm_cb(self, w, time, path, fmt, ...)
+	if(path == '/stream/resolve') then
+		print(path, fmt, ...)
+		self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 0)
+		self.conf[w.fullname](0, '/engines/server', 'ii', 13, 0)
+		self.conf[w.fullname](0, '/engines/mode', 'is', 13, w.mode)
+		self.conf[w.fullname](0, '/engines/address', 'is', 13, 'this:3333')
+		self.conf[w.fullname](0, '/engines/reset', 'i', 13)
+		self.conf[w.fullname](0, w.mode == 'osc.udp' and '/engines/tuio2/enabled' or '/engines/dummy/enabled', 'ii', 13, 1)
+		self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 1)
+
+		self.conf[w.fullname](0, '/sensors/group/attributes/0', 'iffiii', 13, 0.0, 1.0, 0, 1, 0)
+		self.conf[w.fullname](0, '/sensors/group/attributes/1', 'iffiii', 13, 0.0, 1.0, 1, 0, 0)
+
+	elseif(path == '/stream/connect') then
+		print(path, fmt, ...)
+	else
+		self.engine[w.fullname](time, path, fmt, ...)
+	end
+end
+
+local function conf_cb(self, w, time, path, fmt, ...)
+	print(path, fmt, ...)
+
+	if(path == '/stream/resolve' and w.reachable) then
+		local uri = string.format('%s://:%i', w.mode, 3333)
+		self.engine[w.fullname] = dummy:new({n = 160/3, control=0x4a})
+
+		self.comm[w.fullname] = OSC.new(uri, function(...)
+			comm_cb(self, w, ...)
+		end)
+	end
+end
+
+local function dns_sd_browse(self, httpd, client)
+	for k, w in pairs(self.db) do
+		w.reachable = false
+		for _, v in ipairs(self.ifaces) do
+			if(v.version == w.version) then
+				w.reachable = IFACE.check(v.version, v.address, v.netmask, w.address)
+				if(w.reachable) then break end
+			end
+			w.mode = 'osc.tcp'
+		end
+	end
+
+	-- close all open deprecated configuration connections
+	for k, w in pairs(self.conf) do
+		if(not self.db[k] or self.db[k].updated) then
+			w:close()
+			self.conf[k] = nil
+		end
+	end
+
+	-- close all open deprecated communication connections
+	for k, w in pairs(self.comm) do
+		if(not self.db[k] or self.db[k].updated) then
+			w:close()
+			self.comm[k] = nil
+		end
+	end
+
+	-- close all open deprecated engines
+	for k, w in pairs(self.engine) do
+		if(not self.db[k] or self.db[k].updated) then
+			w:close()
+			self.engine[k] = nil
+		end
+	end
+
+	for k, w in pairs(self.db) do
+		if(not self.conf[k] or w.updated) then
+			-- create OSC config hooks
+			local protocol = w.version == 'inet' and 4 or 6
+			local target = w.reachable and w.address or '255.255.255.255'
+
+			local uri = string.find(k, '_osc._udp.')
+				and string.format('osc.udp%i://%s:%i', protocol, target, w.port)
+				or  string.format('osc.tcp%i://%s:%i', protocol, target, w.port)
+
+			self.conf[k] = OSC.new(uri, function(...)
+				conf_cb(self, w, ...)
+			end)
+
+			w.updated = nil
+		end
+	end
+
+	httpd:json(client, {success=true, reply={request='/dns_sd/browse', data=self.db}})
+end
+
 local chimaerad = class:new({
 	port = 8080,
 
 	init = function(self)
+		self.ifaces = IFACE.list()
 		self.db = {}
 		self.conf = {}
 		self.comm = {}
 		self.engine = {}
-		self.ifaces = IFACE.list()
 
 		self.httpd = httpd:new({
-			port = port,
+			port = self.port,
 
 			['/devices/change'] = function(httpd, client, data)
-				local w = self.db[data.target]
-				local conf = self.conf[data.target]
-
-				if(w and conf) then
-					if(data.name ~= w.name) then
-						conf(0, '/info/name', 'is', 13, data.name)
-					end
-
-					if(data.address ~= w.address) then
-						conf(0, '/comm/ip', 'is', 14, data.address .. '/24') -- FIXME netmask
-					end
-
-					data.ipv4ll = data.dhcp or data.ipv4ll -- enable ipv4ll together with dhcp
-
-					if(data.ipv4ll ~= w.txt.ipv4ll) then
-						conf(0, '/ipv4ll/enabled', 'ii', 15, (data.ipv4ll and 1) or 0)
-					end
-
-					if(data.dhcp ~= w.txt.dhcp) then
-						conf(0, '/dhcpc/enabled', 'ii', 16, (data.dhcp and 1) or 0)
-					end
-				end
-
-				-- FIXME only answer after OSC has been successful
-				httpd:json(client, {success=true, reply={request='/devices/change'}})
+				devices_change(self, httpd, client, data)
 			end,
 			
 			['/dns_sd/browse'] = function(httpd, client)
-				for k, w in pairs(self.db) do
-					w.reachable = false
-					for _, v in ipairs(self.ifaces) do
-						if(v.version == w.version) then
-							w.reachable = IFACE.check(v.version, v.address, v.netmask, w.address)
-							if(w.reachable) then break end
-						end
-						w.mode = 'osc.tcp'
-					end
-				end
-
-				-- close all open configuration connections
-				for k, w in pairs(self.conf) do
-					if(not self.db[k]) then
-						w:close()
-						self.conf[k] = nil
-					end
-				end
-
-				-- close all open comm connections
-				for k, w in pairs(self.comm) do
-					if(not self.db[k]) then
-						w:close()
-						self.comm[k] = nil
-					end
-				end
-
-				-- close all open engines
-				self.engine = {}
-
-				for k, w in pairs(self.db) do
-					-- create OSC config hooks
-					local protocol = w.version == 'inet' and 4 or 6
-					local target = w.reachable and w.address or '255.255.255.255'
-
-					local uri = string.find(k, '_osc._udp.')
-						and string.format('osc.udp%i://%s:%i', protocol, target, w.port)
-						or  string.format('osc.tcp%i://%s:%i', protocol, target, w.port)
-
-					self.conf[w.fullname] = OSC.new(uri, function(time, path, fmt, ...)
-						print(w.fullname, time, path, fmt, ...)
-
-						-- report status changes
-						if(path == '/stream/resolve') then
-							if(w.reachable) then
-								local uri = string.format('%s://:%i', w.mode, 3333)
-								self.engine[w.fullname] = dummy:new({n = 160/3, control=0x4a})
-
-								self.comm[w.fullname] = OSC.new(uri, function(time, path, fmt, ...)
-									--print(time, path, fmt, ...)
-
-									if(path == '/stream/resolve') then
-										self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 0)
-										self.conf[w.fullname](0, '/engines/server', 'ii', 13, 0)
-										self.conf[w.fullname](0, '/engines/mode', 'is', 13, w.mode)
-										self.conf[w.fullname](0, '/engines/address', 'is', 13, 'this:3333')
-										self.conf[w.fullname](0, '/engines/reset', 'i', 13)
-										self.conf[w.fullname](0, w.mode == 'osc.udp' and '/engines/tuio2/enabled' or '/engines/dummy/enabled', 'ii', 13, 1)
-										self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 1)
-
-										self.conf[w.fullname](0, '/sensors/group/attributes/0', 'iffiii', 13, 0.0, 1.0, 0, 1, 0)
-										self.conf[w.fullname](0, '/sensors/group/attributes/1', 'iffiii', 13, 0.0, 1.0, 1, 0, 0)
-
-									elseif(path == '/stream/connect') then
-										--TODO
-
-									else
-										self.engine[w.fullname](time, path, fmt, ...)
-									end
-								end)
-							end
-						end
-					end)
-
-				end
-
-				httpd:json(client, {success=true, reply={request='/dns_sd/browse', data=self.db}})
+				dns_sd_browse(self, httpd, client)
 			end,
 
 			['/ifaces/list'] = function(httpd, client)

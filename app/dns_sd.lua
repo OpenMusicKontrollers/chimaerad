@@ -17,105 +17,126 @@
 
 local class = require('class')
 
+local function monitor_ip_cb(self, callback, err, reply)
+	if(err) then return end
+	if(not reply.add) then return end
+	local data = self.db[reply.fullname]
+	if(not data) then return end
+
+	for k, v in pairs(reply) do
+		data[k] = v -- update entries
+	end
+	data.updated = true
+
+	if(callback) then
+		callback(self.db)
+	end
+end
+
+local function monitor_txt_cb(self, callback, err, reply)
+	if(err) then return end
+	if(not reply.add) then return end
+	local data = self.db[reply.fullname]
+	if(not data) then return end
+
+	for k, v in pairs(reply) do
+		data[k] = v -- update entries
+	end
+	data.updated = true
+
+	if(callback) then
+		callback(self.db)
+	end
+end
+
+local function resolve_cb(self, callback, err, reply)
+	if(err) then return end
+
+	if(reply.txt and reply.txt.uri and reply.txt.uri == 'http://open-music-kontrollers.ch/chimaera') then
+		local data = self.db[reply.fullname]
+		local dev =  self.dev[reply.fullname]
+		if(not data) then return end
+		if(not dev) then return end
+
+		for k, v in pairs(reply) do
+			data[k] = v -- update entries
+		end
+
+		dev.monitor_ip = DNS_SD.monitor_ip(reply, function(err, reply)
+			monitor_ip_cb(self, callback, err, reply)
+		end)
+
+		dev.monitor_txt = DNS_SD.monitor_txt(reply, function(err, reply)
+			monitor_txt_cb(self, callback, err, reply)
+		end)
+
+		dev.resolve = nil
+	else -- not a chimaera controller
+
+		device_remove(self, reply.fullname)
+	end
+end
+
+local function device_remove(self, fullname)
+	local dev = self.dev[fullname]
+
+	if(not dev) then return end
+	print('device_close', fullname)
+
+	if(dev.resolve) then
+		dev.resolve:close()
+	end
+
+	if(dev.monitor_ip) then
+		dev.monitor_ip:close()
+	end
+
+	if(dev.monitor_txt) then
+		dev.monitor_txt:close()
+	end
+	
+	self.dev[fullname] = nil
+	self.db[fullname] = nil
+end
+
+local function browse_cb(self, callback, err, reply)
+	if(err) then return end
+
+	local target = reply.name .. '.' .. reply.domain
+	local fullname = reply.name .. '.' .. reply.type .. '.' .. reply.domain
+
+	if(reply.add) then
+		device_remove(self, fullname)
+
+		self.db[fullname] = {
+			name = reply.name
+		}
+
+		self.dev[fullname] = {
+			resolve = DNS_SD.resolve(reply, function(err, reply)
+				resolve_cb(self, callback, err, reply)
+			end)
+		}
+	else -- not reply.add
+		device_remove(self, fullname)
+
+		if(callback) then
+			callback(self.db)
+		end
+	end
+end
+
 local dns_sd = class:new({
 	init = function(self, callback)
+		self.dev = {}
 		self.db = {}
-		self.resolve = {}
-		self.monitor_ip = {}
-		self.monitor_txt = {}
 
-		self.monitor_ip_cb = function(err, reply)
-			if(err) then return end
-
-			if(reply.add) then
-				for k, v in pairs(reply) do
-					self.db[reply.fullname][k] = v -- update entries
-				end
-			end
-
-			if(not reply.more_coming and callback) then
-				callback(self.db)
-			end
+		local browse_redirect = function(err, reply)
+			browse_cb(self, callback, err, reply)
 		end
 
-		self.monitor_txt_cb = function(err, reply)
-			if(err) then return end
-
-			if(reply.add) then
-				for k, v in pairs(reply) do
-					self.db[reply.fullname][k] = v -- update entries
-				end
-			end
-
-			if(not reply.more_coming and callback) then
-				callback(self.db)
-			end
-		end
-
-		self.resolve_cb = function(err, reply)
-			if(err) then return end
-
-			if(reply.txt and reply.txt.uri and reply.txt.uri == 'http://open-music-kontrollers.ch/chimaera') then
-				for k, v in pairs(reply) do
-					self.db[reply.fullname][k] = v -- update entries
-				end
-				self.monitor_ip[reply.fullname] = DNS_SD.monitor_ip(reply, self.monitor_ip_cb)
-				self.monitor_txt[reply.fullname] = DNS_SD.monitor_txt(reply, self.monitor_txt_cb)
-			else
-				self.db[reply.fullname] = nil
-			end
-
-			self.resolve[reply.fullname] = nil
-		end
-
-		self.browse_cb = function(err, reply)
-			if(err) then return end
-
-			local target = reply.name .. '.' .. reply.domain
-			local fullname = reply.name .. '.' .. reply.type .. '.' .. reply.domain
-
-			if(reply.add) then
-				if(self.resolve[fullname]) then
-					self.resolve[fullname]:close()
-				end
-				if(self.monitor_ip[fullname]) then
-					self.monitor_ip[fullname]:close()
-				end
-				if(self.monitor_txt[fullname]) then
-					self.monitor_txt[fullname]:close()
-				end
-
-				self.db[fullname] = {name = reply.name}
-				self.resolve[fullname] = DNS_SD.resolve(reply, self.resolve_cb)
-				self.monitor_ip[fullname] = nil
-				self.monitor_txt[fullname] = nil
-
-			else -- not reply.add
-				if(self.resolve[fullname]) then
-					self.resolve[fullname]:close()
-				end
-				if(self.monitor_ip[fullname]) then
-					self.monitor_ip[fullname]:close()
-				end
-				if(self.monitor_txt[fullname]) then
-					self.monitor_txt[fullname]:close()
-				end
-
-				self.db[fullname] = nil
-				self.resolve[fullname] = nil
-				self.monitor_ip[fullname] = nil
-				self.monitor_txt[fullname] = nil
-
-				if(callback) then
-					callback(self.db)
-				end
-			end
-		end
-
-		self.browse = {
-			udp = DNS_SD.browse({type='_osc._udp.', domain='local.'}, self.browse_cb),
-			tcp = DNS_SD.browse({type='_osc._tcp.', domain='local.'}, self.browse_cb)
-		}
+		self.browse_udp = DNS_SD.browse({type='_osc._udp.', domain='local.'}, browse_redirect)
+		self.browse_tcp = DNS_SD.browse({type='_osc._tcp.', domain='local.'}, browse_redirect)
 	end
 })
 

@@ -35,14 +35,45 @@ setmetatable(content_type, {
 		return 'Content-Type: application/octet-stream\r\n\r\n'
 	end})
 
+local function cb(self, client, data)
+	if(data.url == '/?') then
+		if(data.body) then
+			local err, json = JSON.decode(data.body)
+			if(not err) then
+				local meth = self[json.request]
+
+				if(meth) then
+					meth(self, client, json.data)
+				else
+					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='method missing'}))
+				end
+			else
+				client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON decoding'}))
+			end
+		else
+			client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='body missing'}))
+		end
+
+	else
+		if(data.url == '/') then
+			data.url = '/index.html'
+		end
+
+		local index = data.url:find('%.[^%.]*$')
+		local file = data.url:sub(2, index-1)
+		local suffix = data.url:sub(index+1)
+
+		local chunk = ZIP.read(file .. '.' .. suffix)
+		if(chunk) then
+			client(code[200] .. content_type[suffix] .. chunk)
+		else
+			client(code[404])
+		end
+	end
+end
 
 local httpd = class:new({
-	-- global
 	port = 8080,
-
-	-- private
-	clients = nil,
-	queue = nil,
 
 	push = function(self, data)
 		table.insert(self.queue, data)
@@ -82,42 +113,8 @@ local httpd = class:new({
 	init = function(self)
 		self.queue = {}
 		self.clients = {}
-
-		self.io = HTTP.new(self.port, function(client, data)
-			if(data.url == '/?') then
-				if(data.body) then
-					local err, json = JSON.decode(data.body)
-					if(not err) then
-						local meth = self[json.request]
-
-						if(meth) then
-							meth(self, client, json.data)
-						else
-							client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='method missing'}))
-						end
-					else
-						client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON decoding'}))
-					end
-				else
-					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='body missing'}))
-				end
-
-			else
-				if(data.url == '/') then
-					data.url = '/index.html'
-				end
-
-				local index = data.url:find('%.[^%.]*$')
-				local file = data.url:sub(2, index-1)
-				local suffix = data.url:sub(index+1)
-
-				local chunk = ZIP.read(file .. '.' .. suffix)
-				if(chunk) then
-					client(code[200] .. content_type[suffix] .. chunk)
-				else
-					client(code[404])
-				end
-			end
+		self.server = HTTP.new(self.port, function(client, data)
+			cb(self, client, data)
 		end)
 	end
 })

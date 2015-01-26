@@ -29,6 +29,10 @@ local dummy = class:new({
 		self.midi:open_virtual()
 	end,
 
+	close = function(self)
+		self.midi:close()
+	end,
+
 	['/on'] = function(self, time, sid, gid, pid, x, z)
 		local X = x*self.n + 23.166
 		local key = math.floor(X)

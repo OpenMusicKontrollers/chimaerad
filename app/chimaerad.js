@@ -79,17 +79,12 @@ function devices_toggle(e) {
 		return;
 
 	$('#devices_name').prop('value', device.name);
-	$('#devices_target').html(device.target);
-	$('#devices_fullname').html(device.fullname);
 	$('#devices_port').html(device.port);
-	$('#devices_interface').html(device.interface);
 
-	$('#devices_txt_uri').html(device.txt.uri);
 	$('#devices_txt_reset').html(device.txt.reset);
 	$('#devices_txt_claim_ipv4ll').prop('checked', device.txt.ipv4ll && !device.txt.dhcp)
 	$('#devices_txt_claim_dhcp').prop('checked', device.txt.dhcp);
 	$('#devices_txt_claim_static').prop('checked', device.txt.static);
-	$('#devices_version').html(device.version);
 	$('#devices_address').prop('value', device.address);
 	$('#devices_address').prop('disabled', !device.txt.static);
 	$('#devices_reachable').html(device.reachable ? 'yes' : 'no (you need to reconfigure the device IP)');
@@ -141,7 +136,7 @@ function update(data) {
 			console.log(err);
 		},
 		success: function(data, status) {
-			console.log(JSON.stringify(data));
+			//console.log(JSON.stringify(data));
 			if(data.success) {
 				var reply = data.reply;
 				var cb = events[reply.request];

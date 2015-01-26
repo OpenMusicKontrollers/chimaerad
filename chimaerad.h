@@ -76,7 +76,7 @@ rt_free(app_t *app, void *buf)
 	tlsf_free(app->rtmem.tlsf, buf);
 }
 
-char *zip_read(app_t *app, const char *key, size_t *size);
+uint8_t *zip_read(app_t *app, const char *key, size_t *size);
 
 int luaopen_json(app_t *app);
 int luaopen_osc(app_t *app);

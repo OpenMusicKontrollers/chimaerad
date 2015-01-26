@@ -24,39 +24,34 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-char *
+uint8_t *
 zip_read(app_t *app, const char *key, size_t *size)
 {
-	char *str = NULL;
-	struct zip_file *f = NULL;
 	struct zip_stat stat;
-	size_t fsize;
+	if(!zip_stat(app->io, key, 0, &stat))
+	{
+		size_t fsize = stat.size;
+		struct zip_file *f = zip_fopen(app->io, key, 0);
+		if(f)
+		{
+			uint8_t *str = rt_alloc(app, fsize);
+			if(str)
+			{
+				if(zip_fread(f, str, fsize) == -1)
+				{
+					rt_free(app, str);
+					str = NULL;
+					fsize = 0;
+				}
+				else
+					; //success
+			}
+			zip_fclose(f);
 
-	if(zip_stat(app->io, key, 0, &stat))
-		goto fail;
-	fsize = stat.size;
-
-	f = zip_fopen(app->io, key, 0);
-	if(!f)
-		goto fail;
-	
-	str = rt_alloc(app, fsize + 1);
-	if(!str)
-		goto fail;
-
-	if(zip_fread(f, str, fsize) == -1)
-		goto fail;
-	zip_fclose(f);
-	str[fsize] = 0;
-
-	*size = fsize;
-	return str;
-
-fail:
-	if(str)
-		rt_free(app, str);
-	if(f)
-		zip_fclose(f);
+			*size = fsize;
+			return str;
+		}
+	}
 
 	*size = 0;
 	return NULL;
@@ -70,11 +65,11 @@ _call(lua_State *L)
 	const char *key = luaL_checkstring(L, 1);
 
 	size_t size;
-	char *chunk = zip_read(app, key, &size);
+	uint8_t *chunk = zip_read(app, key, &size);
 
 	if(chunk)
 	{
-		lua_pushlstring(L, chunk, size);
+		lua_pushlstring(L, (char *)chunk, size);
 		rt_free(app, chunk);
 	}
 	else

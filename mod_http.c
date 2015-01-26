@@ -76,10 +76,11 @@ _after_write(uv_write_t *req, int status)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)req->handle;
 	client_t *client = handle->data;
+	server_t *server = client->server;
 	int err;
 
-	if(req->data) // from strdup
-		free(req->data);
+	if(req->data)
+		rt_free(server->app, req->data);
 
 	if(uv_is_active((uv_handle_t *)handle))
 	{
@@ -93,6 +94,7 @@ static int
 _client_send(lua_State *L)
 {
 	client_t *client = luaL_checkudata(L, 1, "client_t");
+	server_t *server = client->server;
 
 	size_t size;
 	const char *chunk= luaL_checklstring(L, -1, &size);
@@ -100,13 +102,17 @@ _client_send(lua_State *L)
 
 	if(chunk)
 	{
-		uv_buf_t msg [1];
+		client->req.data = rt_alloc(server->app, size);
+		if(!client->req.data)
+			return 0;
+		memcpy(client->req.data, chunk, size);
 
-		msg[0].base = strdup(chunk);
-		msg[0].len = size;
-		client->req.data = msg[0].base;
+		uv_buf_t msg = {
+			.base = client->req.data,
+			.len = size
+		};
 
-		uv_write(&client->req, (uv_stream_t *)&client->handle, msg, 1, _after_write);
+		uv_write(&client->req, (uv_stream_t *)&client->handle, &msg, 1, _after_write);
 	}
 
 	return 0;
