@@ -76,9 +76,17 @@ _after_write(uv_write_t *req, int status)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)req->handle;
 	client_t *client = handle->data;
+	int err;
+
+	if(req->data) // from strdup
+		free(req->data);
 
 	if(uv_is_active((uv_handle_t *)handle))
+	{
+		if((err = uv_read_stop((uv_stream_t *)handle)))
+			fprintf(stderr, "uv_read_stop: %s\n", uv_strerror(err));
 		uv_close((uv_handle_t *)handle, _on_client_close);
+	}
 }
 
 static int
@@ -94,8 +102,9 @@ _client_send(lua_State *L)
 	{
 		uv_buf_t msg [1];
 
-		msg[0].base = (char *)chunk; //FIXME strdup
+		msg[0].base = strdup(chunk);
 		msg[0].len = size;
+		client->req.data = msg[0].base;
 
 		uv_write(&client->req, (uv_stream_t *)&client->handle, msg, 1, _after_write);
 	}
@@ -112,6 +121,7 @@ static int
 _server_gc(lua_State *L)
 {
 	server_t *server = luaL_checkudata(L, 1, "server_t");
+	int err;
 
 	// close http clients
 	Inlist *l;
@@ -119,7 +129,11 @@ _server_gc(lua_State *L)
 	INLIST_FOREACH_SAFE(server->clients, l, client)
 	{
 		if(uv_is_active((uv_handle_t *)&client->handle))
+		{
+			if((err = uv_read_stop((uv_stream_t *)&client->handle)))
+				fprintf(stderr, "uv_read_stop: %s\n", uv_strerror(err));
 			uv_close((uv_handle_t *)&client->handle, NULL);
+		}
 
 		_client_remove(client);
 	}
@@ -300,7 +314,7 @@ _on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
 	client_t *client = handle->data;
 
-	buf->base = rt_alloc(client->server->app, suggested_size); //TODO
+	buf->base = rt_alloc(client->server->app, suggested_size);
 	buf->len = buf->base ? suggested_size : 0;
 }
 
@@ -310,6 +324,7 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 	uv_tcp_t *handle = (uv_tcp_t *)stream;
 	client_t *client = handle->data;
 	server_t *server = client->server;
+	int err;
 
 	if(nread >= 0)
 	{
@@ -319,7 +334,11 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 		{
 			fprintf(stderr, "_on_read: http parse error\n");
 			if(uv_is_active((uv_handle_t *)handle))
+			{
+				if((err = uv_read_stop((uv_stream_t *)handle)))
+					fprintf(stderr, "uv_read_stop: %s\n", uv_strerror(err));
 				uv_close((uv_handle_t *)handle, _on_client_close);
+			}
 		}
 	}
 	else
@@ -327,7 +346,11 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 		if(nread != UV_EOF)
 			fprintf(stderr, "_on_read: %s\n", uv_strerror(nread));
 		if(uv_is_active((uv_handle_t *)handle))
+		{
+			if((err = uv_read_stop((uv_stream_t *)handle)))
+				fprintf(stderr, "uv_read_stop: %s\n", uv_strerror(err));
 			uv_close((uv_handle_t *)handle, _on_client_close);
+		}
 	}
 
 	if(buf->base)
@@ -346,6 +369,7 @@ _on_connected(uv_stream_t *handle, int status)
 	client_t *client = lua_newuserdata(L, sizeof(client_t));
 	if(!client)
 		return;
+	memset(client, 0, sizeof(client_t));
 
 	luaL_getmetatable(L, "client_t");
 	lua_setmetatable(L, -2);
@@ -374,7 +398,7 @@ _on_connected(uv_stream_t *handle, int status)
 
 	http_parser_init(&client->parser, HTTP_REQUEST);
 
-	if((uv_read_start((uv_stream_t *)&client->handle, _on_alloc, _on_read)))
+	if((err = uv_read_start((uv_stream_t *)&client->handle, _on_alloc, _on_read)))
 	{
 		fprintf(stderr, "uv_read_start: %s\n", uv_strerror(err));
 		return;

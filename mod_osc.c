@@ -409,7 +409,6 @@ _new(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	const char *url = luaL_checkstring(L, 1);
-	int has_callback = lua_gettop(L) > 1; //TODO check whether this is callable
 
 	mod_osc_t *mod_osc = lua_newuserdata(L, sizeof(mod_osc_t));
 	if(!mod_osc)
@@ -423,12 +422,9 @@ _new(lua_State *L)
 	luaL_getmetatable(L, "mod_osc_t");
 	lua_setmetatable(L, -2);
 
-	if(has_callback)
-	{
-		lua_pushlightuserdata(L, mod_osc);
-		lua_pushvalue(L, 2); // push callback
-		lua_rawset(L, LUA_REGISTRYINDEX);
-	}
+	lua_pushlightuserdata(L, mod_osc);
+	lua_pushvalue(L, 2); // push callback
+	lua_rawset(L, LUA_REGISTRYINDEX);
 
 	return 1;
 
