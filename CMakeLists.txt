@@ -163,7 +163,9 @@ set(ZIP_SOURCES
 	class.lua
 	httpd.lua
 	dns_sd.lua
-	dummy.lua
+	midi_out.lua
+	tuio2_fltr.lua
+	map.lua
 	
 	font/Berenika-Bold.ttf
 	font/Berenika-Bold.woff

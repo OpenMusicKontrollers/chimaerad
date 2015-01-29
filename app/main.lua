@@ -18,7 +18,10 @@
 local class = require('class')
 local httpd = require('httpd')
 local dns_sd = require('dns_sd')
-local dummy = require('dummy')
+
+local midi_out = require('midi_out')
+local tuio2_fltr = require('tuio2_fltr')
+local map = require('map')
 
 local function devices_change(self, httpd, client, data)
 	local w = self.db[data.target]
@@ -45,7 +48,20 @@ local function devices_change(self, httpd, client, data)
 	end
 
 	-- FIXME only answer after OSC has been successful
-	httpd:json(client, {success=true, reply={request='/devices/change'}})
+	httpd:json(client, {status='success', data=nil})
+end
+
+local function api_v1_introspection(self, httpd, client, data)
+	local w = self.db[data.target]
+	local conf = self.conf[data.target]
+
+	if(w and conf) then
+		conf(0, '/!', 'i', 13)
+			--TODO
+	end
+
+	-- FIXME only answer after introspection has been finished
+	--httpd:json(client, {status='success', data=nil})
 end
 
 local function comm_cb(self, w, time, path, fmt, ...)
@@ -56,33 +72,48 @@ local function comm_cb(self, w, time, path, fmt, ...)
 		self.conf[w.fullname](0, '/engines/mode', 'is', 13, w.mode)
 		self.conf[w.fullname](0, '/engines/address', 'is', 13, 'this:3333')
 		self.conf[w.fullname](0, '/engines/reset', 'i', 13)
-		self.conf[w.fullname](0, w.mode == 'osc.udp' and '/engines/tuio2/enabled' or '/engines/dummy/enabled', 'ii', 13, 1)
-		self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 1)
-
 		self.conf[w.fullname](0, '/sensors/group/attributes/0', 'iffiii', 13, 0.0, 1.0, 0, 1, 0)
 		self.conf[w.fullname](0, '/sensors/group/attributes/1', 'iffiii', 13, 0.0, 1.0, 1, 0, 0)
 
+		if(w.mode == 'osc.udp') then
+			self.conf[w.fullname](0, '/engines/tuio2/derivatives', 'ii', 13, 0)
+			self.conf[w.fullname](0, '/engines/tuio2/enabled', 'ii', 13, 1)
+		else
+			self.conf[w.fullname](0, '/engines/dummy/derivatives', 'ii', 13, 0)
+			self.conf[w.fullname](0, '/engines/dummy/redundancy', 'ii', 13, 0)
+			self.conf[w.fullname](0, '/engines/dummy/enabled', 'ii', 13, 1)
+		end
+		self.conf[w.fullname](0, '/engines/enabled', 'ii', 13, 1)
+
 	elseif(path == '/stream/connect') then
 		print(path, fmt, ...)
-	else
-		self.engine[w.fullname](time, path, fmt, ...)
 	end
 end
 
-local function conf_cb(self, w, time, path, fmt, ...)
-	print(path, fmt, ...)
+local function conf_cb(self, w, time, path, fmt, uid, target, ...)
+	print(path, fmt, uid, target, ...) 
 
 	if(path == '/stream/resolve' and w.reachable) then
+		self.conf[w.fullname](0, '/sensors/number', 'i', 13)
+	elseif(path == '/success' and target == '/sensors/number') then
 		local uri = string.format('%s://:%i', w.mode, 3333)
-		self.engine[w.fullname] = dummy:new({n = 160/3, control=0x4a})
+		local n = ...
+		local md = midi_out:new({map=map_linear:new({oct=2, n=n}), control=0x4a})
+
+		if(w.mode == 'osc.udp') then
+			self.engine[w.fullname] = tuio2_fltr:new({}, md)
+		else -- 'osc.tcp'
+			self.engine[w.fullname] = md
+		end
 
 		self.comm[w.fullname] = OSC.new(uri, function(...)
+			self.engine[w.fullname](...)
 			comm_cb(self, w, ...)
 		end)
 	end
 end
 
-local function dns_sd_browse(self, httpd, client)
+local function api_v1_devices(self, httpd, client)
 	for k, w in pairs(self.db) do
 		w.reachable = false
 		for _, v in ipairs(self.ifaces) do
@@ -90,7 +121,9 @@ local function dns_sd_browse(self, httpd, client)
 				w.reachable = IFACE.check(v.version, v.address, v.netmask, w.address)
 				if(w.reachable) then break end
 			end
-			w.mode = 'osc.tcp'
+			-- FIXME make this configurable
+			--w.mode = 'osc.tcp'
+			w.mode = 'osc.udp'
 		end
 	end
 
@@ -136,7 +169,7 @@ local function dns_sd_browse(self, httpd, client)
 		end
 	end
 
-	httpd:json(client, {success=true, reply={request='/dns_sd/browse', data=self.db}})
+	httpd:json(client, {status='success', data=self.db})
 end
 
 local chimaerad = class:new({
@@ -152,22 +185,34 @@ local chimaerad = class:new({
 		self.httpd = httpd:new({
 			port = self.port,
 
+			--[[
 			['/devices/change'] = function(httpd, client, data)
 				devices_change(self, httpd, client, data)
 			end,
-			
-			['/dns_sd/browse'] = function(httpd, client)
-				dns_sd_browse(self, httpd, client)
-			end,
+			--]]
 
-			['/ifaces/list'] = function(httpd, client)
-				httpd:json(client, {success=true, reply={request='/ifaces/list', data=self.ifaces}})
-			end
+			api_v1 = {
+				['/api/v1/keepalive'] = function(httpd, client)
+					httpd:add(client)
+				end,
+
+				['/api/v1/interfaces'] = function(httpd, client)
+					httpd:json(client, {status='success', data=self.ifaces})
+				end,
+
+				['/api/v1/devices'] = function(httpd, client, data)
+					api_v1_devices(self, httpd, client)
+				end,
+
+				['/api/v1/introspection'] = function(httpd, client, data)
+					api_v1_introspection(self, httpd, client, data)
+				end
+			}
 		})
 
 		self.dns_sd = dns_sd:new({}, function(db)
 			self.db = db
-			self.httpd:push({success=true, reply={request='/dns_sd/browse'}})
+			self.httpd:push({status='success', data={href='/api/v1/devices'}})
 		end)
 	end
 })

@@ -36,22 +36,14 @@ setmetatable(content_type, {
 	end})
 
 local function cb(self, client, data)
-	if(data.url == '/?') then
-		if(data.body) then
-			local err, json = JSON.decode(data.body)
-			if(not err) then
-				local meth = self[json.request]
+	local meth = self.api_v1 and self.api_v1[data.url]
 
-				if(meth) then
-					meth(self, client, json.data)
-				else
-					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='method missing'}))
-				end
-			else
-				client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON decoding'}))
-			end
+	if(meth) then
+		local err, json = data.body and JSON.decode(data.body) or nil, nil
+		if(not err) then
+			meth(self, client, json and json.data)
 		else
-			client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='body missing'}))
+			client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON decoding'}))
 		end
 
 	else
@@ -60,12 +52,16 @@ local function cb(self, client, data)
 		end
 
 		local index = data.url:find('%.[^%.]*$')
-		local file = data.url:sub(2, index-1)
-		local suffix = data.url:sub(index+1)
+		if(index) then
+			local file = data.url:sub(2, index-1)
+			local suffix = data.url:sub(index+1)
 
-		local chunk = ZIP.read(file .. '.' .. suffix)
-		if(chunk) then
-			client(code[200] .. content_type[suffix] .. chunk)
+			local chunk = ZIP.read(file .. '.' .. suffix)
+			if(chunk) then
+				client(code[200] .. content_type[suffix] .. chunk)
+			else
+				client(code[404])
+			end
 		else
 			client(code[404])
 		end
@@ -74,6 +70,11 @@ end
 
 local httpd = class:new({
 	port = 8080,
+
+	add = function(self, client)
+		table.insert(self.clients, client)
+		self:dispatch()
+	end,
 
 	push = function(self, data)
 		table.insert(self.queue, data)
@@ -89,7 +90,7 @@ local httpd = class:new({
 				if(not err) then
 					client(code[200] .. content_type['json'] .. str)
 				else
-					client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON encoding'}))
+					client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON encoding'}))
 				end
 			end
 			self.clients = {}
@@ -101,13 +102,8 @@ local httpd = class:new({
 		if(not err) then
 			client(code[200] .. content_type['json'] .. str)
 		else
-			client(code[200] .. content_type['json'] .. JSON.encode({success=false, error='JSON encoding'}))
+			client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON encoding'}))
 		end
-	end,
-
-	['/keepalive'] = function(self, client)
-		table.insert(self.clients, client)
-		self:dispatch()
 	end,
 
 	init = function(self)

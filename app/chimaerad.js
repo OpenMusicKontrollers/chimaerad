@@ -28,7 +28,7 @@ $.postJSON = function(data) {
 	dup.type = 'POST';
 	dup.dataType = 'json';
 
-	return $.ajax(dup);
+	$.ajax(dup);
 }
 
 var devices = {}
@@ -71,6 +71,24 @@ function devices_change(e) {
 	});
 };
 
+function header_toggle(e) {
+	var id = $(this).attr('id');
+	
+	$('#discovery').hide();
+	$('#configuration').hide();
+	$('#communication').hide();
+	$('#event_handling').hide();
+
+	if(id == 'menu_discovery')
+		$('#discovery').show();
+	else if(id == 'menu_configuration')
+		$('#configuration').show();
+	else if(id == 'menu_communication')
+		$('#communication').show();
+	else if(id == 'menu_event_handling')
+		$('#event_handling').show();
+};
+
 function devices_toggle(e) {
 	var key = $(this).attr('id');
 	device = devices[key];
@@ -101,57 +119,8 @@ function devices_toggle(e) {
 		$('.comms').hide();
 }
 
-var events = {
-	'/ifaces/list': function(data, status) {
-		var itm = [];
-		$.each(data, function(i, conf) {
-			if(!conf.internal && (conf.version == 'inet'))
-				itm.push(conf.name + ' (' + conf.address + ')');
-		});
-		$('#ifaces_list').html(itm.join(', '));
-	},
-
-	'/dns_sd/browse': function(data, status) {
-		var itm = [];
-		$.each(data, function(key, conf) {
-			devices[key] = conf;
-			itm.push('<a href="#" id="' + key + '">' + key + '</a>');
-		});
-		$('#devices_list').html(itm.join(', '));
-		$.each(data, function(key, conf) {
-			$('a[id="'+key+'"]').click(devices_toggle);
-		});
-		$('.devices').hide();
-		$('.comms').hide();
-	}
-}
-
-function update(data) {
-	//console.log('update', JSON.stringify(data));
-
-	$.postJSON({
-		url: '/?',
-		data: data,
-		error: function(jqXHR, err) {
-			console.log(err);
-		},
-		success: function(data, status) {
-			//console.log(JSON.stringify(data));
-			if(data.success) {
-				var reply = data.reply;
-				var cb = events[reply.request];
-				if(cb !== undefined)
-					cb(reply.data, status);
-			};
-		}
-	});
-}
-
-function keepalive() {
-	//console.log('keepalive');
-
-	if(!connected)
-	{
+function api_v1_keepalive() {
+	if(!connected) {
 		$('#daemon_status').html('disconnected (<i>check whether the "chimaerad" daemon is up and running and then refresh this page)</i>.');
 
 		$('.lists').hide();
@@ -159,36 +128,81 @@ function keepalive() {
 		$('.devices').hide();
 		$('.comms').hide();
 		return;
-	}
-	else
-	{
+	} else {
 		$('#daemon_status').html('connected');
-
 		$('.lists').show();
 	}
 
 	$.postJSON({
-		url: '/?',
-		data: {'request': '/keepalive'},
-		timeout: 60*1000,
-		complete: keepalive,
-		error: function(jqXHR, err) {
-			if(err == 'timeout')
-				; //console.log(err);
-			if(err == 'error')
+		url:'/api/v1/keepalive',
+		data:null,
+		timeout:60000,
+		error:function(jqXHR, status) {
+			if(status == 'error')
 				connected = false;
 		},
-		success: function(data, status) {
-			console.log(JSON.stringify(data));
-			if(data.success) {
-				update(data.reply);
+		success:function(reply, status) {
+			if(status != 'success' || reply.status != 'success') {
+				console.log('api_v1_keepalive' + reply.message);
+				return;
 			}
-		}
+			getAPI(reply.data.href);
+		},
+		complete:api_v1_keepalive
 	});
 };
 
+function api_v1_interfaces(reply, status) {
+	if(status != 'success' || reply.status != 'success') {
+		console.log('api_v1_interfaces' + reply.message);
+		return;
+	}
+
+	var itm = [];
+	$.each(reply.data, function(i, conf) {
+		if(!conf.internal && (conf.version == 'inet'))
+			itm.push(conf.name + ' (' + conf.address + ')');
+	});
+	$('#ifaces_list').html(itm.join(', '));
+}
+
+function api_v1_devices(reply, status) {
+	if(status != 'success' || reply.status != 'success') {
+		console.log('api_v1_devices' + reply.message);
+		return;
+	}
+
+	var itm = [];
+	$.each(reply.data, function(key, conf) {
+		devices[key] = conf;
+		itm.push('<a href="#" id="' + key + '">' + key + '</a>');
+	});
+	$('#devices_list').html(itm.join(', '));
+	$.each(reply.data, function(key, conf) {
+		$('a[id="'+key+'"]').click(devices_toggle);
+	});
+	$('.devices').hide();
+	$('.comms').hide();
+}
+
+var api_v1_get = {
+	'/api/v1/interfaces': api_v1_interfaces,
+	'/api/v1/devices': api_v1_devices
+};
+
+function postAPI(url, data) {
+	$.postJSON({url:url, data:data, success:api_v1_post[url]});
+};
+
+function getAPI(url) {
+	$.getJSON(url, null, api_v1_get[url]);
+};
+
 $(document).ready(function() {
-	keepalive();
-	update({'request': '/ifaces/list'});
-	update({'request': '/dns_sd/browse'});
+	api_v1_keepalive();
+
+	getAPI('/api/v1/interfaces');
+	getAPI('/api/v1/devices');
+	
+	$('a.header').off('click').on('click', header_toggle);
 });
