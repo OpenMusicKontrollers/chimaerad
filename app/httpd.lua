@@ -16,6 +16,7 @@
 --]]
 
 local class = require('class')
+local rest_responder = require('rest_responder')
 
 local code = {
 	[200] = 'HTTP/1.1 200 OK\r\n',
@@ -35,53 +36,53 @@ setmetatable(content_type, {
 		return 'Content-Type: application/octet-stream\r\n\r\n'
 	end})
 
-local function cb(self, client, data)
-	local meth = self.api_v1 and self.api_v1[data.url]
+local function httpd_cb(self, client, data)
+	if(data.url == '/') then
+		data.url = '/index.html'
+	end
 
-	if(meth) then
-		local err, json = data.body and JSON.decode(data.body) or nil, nil
-		if(not err) then
-			meth(self, client, json and json.data)
-		else
-			client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON decoding'}))
-		end
+	-- first search for matching path in rest api
+	if(self(data.url, client, data)) then return end
 
-	else
-		if(data.url == '/') then
-			data.url = '/index.html'
-		end
+	local index = data.url:find('%.[^%.]*$')
+	if(index) then
+		local file = data.url:sub(2, index-1)
+		local suffix = data.url:sub(index+1)
 
-		local index = data.url:find('%.[^%.]*$')
-		if(index) then
-			local file = data.url:sub(2, index-1)
-			local suffix = data.url:sub(index+1)
-
-			local chunk = ZIP.read(file .. '.' .. suffix)
-			if(chunk) then
-				client(code[200] .. content_type[suffix] .. chunk)
-			else
-				client(code[404])
-			end
+		local chunk = ZIP.read(file .. '.' .. suffix)
+		if(chunk) then
+			client(code[200] .. content_type[suffix] .. chunk)
 		else
 			client(code[404])
 		end
+	else
+		client(code[404])
 	end
 end
 
-local httpd = class:new({
+local httpd = rest_responder:new({
 	port = 8080,
 
-	add = function(self, client)
+	push_client = function(self, client)
 		table.insert(self.clients, client)
-		self:dispatch()
+		self:_dispatch()
 	end,
 
-	push = function(self, data)
+	broadcast_json = function(self, data)
 		table.insert(self.queue, data)
-		self:dispatch()
+		self:_dispatch()
 	end,
 
-	dispatch = function(self)
+	unicast_json = function(self, client, data)
+		local err, str =  JSON.encode(data)
+		if(not err) then
+			client(code[200] .. content_type['json'] .. str)
+		else
+			client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON encoding'}))
+		end
+	end,
+
+	_dispatch = function(self)
 		if(#self.queue>0 and #self.clients>0) then
 			local item = table.remove(self.queue, 1)
 
@@ -97,20 +98,11 @@ local httpd = class:new({
 		end
 	end,
 
-	json = function(self, client, data)
-		local err, str =  JSON.encode(data)
-		if(not err) then
-			client(code[200] .. content_type['json'] .. str)
-		else
-			client(code[200] .. content_type['json'] .. JSON.encode({status='error', message='JSON encoding'}))
-		end
-	end,
-
 	_init = function(self)
 		self.queue = {}
 		self.clients = {}
 		self.server = HTTP.new(self.port, function(client, data)
-			cb(self, client, data)
+			httpd_cb(self, client, data)
 		end)
 	end
 })

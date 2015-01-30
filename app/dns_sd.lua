@@ -131,12 +131,17 @@ local dns_sd = class:new({
 		self.dev = {}
 		self.db = {}
 
-		local browse_redirect = function(err, reply)
+		local function browse_redirect(err, reply)
 			browse_cb(self, callback, err, reply)
 		end
 
 		self.browse_udp = DNS_SD.browse({type='_osc._udp.', domain='local.'}, browse_redirect)
 		self.browse_tcp = DNS_SD.browse({type='_osc._tcp.', domain='local.'}, browse_redirect)
+	end,
+
+	_deinit = function(self)
+		self.browse_udp:close()
+		self.browse_tcp:close()
 	end
 })
 

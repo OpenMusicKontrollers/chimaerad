@@ -95,11 +95,11 @@ local function tuio2_alv(self, time, ...)
 end
 
 local tuio2_fltr = osc_responder:new({
-	ignore = false,
-	last_fid = 0,
-	last_time = 0,
-
 	_init = function(self, cb)
+		self.ignore = false
+		self.last_fid = 0
+		self.last_time = 0
+
 		self.blobs = {}
 		self.cb = cb
 	end,

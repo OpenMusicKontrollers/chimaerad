@@ -48,20 +48,22 @@ local function devices_change(self, httpd, client, data)
 	end
 
 	-- FIXME only answer after OSC has been successful
-	httpd:json(client, {status='success', data=nil})
+	httpd:unicast_json(client, {status='success', data=nil})
 end
 
-local function api_v1_introspection(self, httpd, client, data)
-	local w = self.db[data.target]
-	local conf = self.conf[data.target]
-
-	if(w and conf) then
-		conf(0, '/!', 'i', 13)
-			--TODO
+local function api_v1_handles(self, httpd, client, data)
+	if(data) then
+		self.db[data.target].handled = data.state
 	end
 
-	-- FIXME only answer after introspection has been finished
-	--httpd:json(client, {status='success', data=nil})
+	local handles = {}
+	for k, v in pairs(self.db) do
+		if(v.handled) then
+			table.insert(handles, k)
+		end
+	end
+
+	httpd:unicast_json(client, {status='success', data=handles})
 end
 
 local function comm_cb(self, w, time, path, fmt, ...)
@@ -107,9 +109,10 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		end
 
 		self.comm[w.fullname] = OSC.new(uri, function(...)
-			return self.engine[w.fullname]
-				and not self.engine[w.fullname](...)
-				or not comm_cb(self, w, ...)
+			if(self.engine[w.fullname]) then
+				self.engine[w.fullname](...)
+			end
+			comm_cb(self, w, ...)
 		end)
 	end
 end
@@ -194,12 +197,14 @@ local function api_v1_devices(self, httpd, client)
 		end
 	end
 
-	httpd:json(client, {status='success', data=self.db})
+	httpd:unicast_json(client, {status='success', data=self.db})
 end
 
-local chimaerad = class:new({
-	port = 8080,
+--			['/devices/change'] = function(httpd, client, data)
+--				devices_change(self, httpd, client, data)
+--			end,
 
+local app = class:new({
 	_init = function(self)
 		self.ifaces = IFACE.list()
 		self.db = {}
@@ -208,40 +213,39 @@ local chimaerad = class:new({
 		self.engine = {}
 
 		self.httpd = httpd:new({
-			port = self.port,
+			port = 8080,
 
-			--[[
-			['/devices/change'] = function(httpd, client, data)
-				devices_change(self, httpd, client, data)
-			end,
-			--]]
-
-			api_v1 = {
-				['/api/v1/keepalive'] = function(httpd, client)
-					httpd:add(client)
+			_rest = { api = { v1 = {
+				keepalive = function(httpd, client)
+					httpd:push_client(client)
 				end,
 
-				['/api/v1/interfaces'] = function(httpd, client)
-					httpd:json(client, {status='success', data=self.ifaces})
+				interfaces = function(httpd, client)
+					httpd:unicast_json(client, {status='success', data=self.ifaces})
 				end,
 
-				['/api/v1/devices'] = function(httpd, client, data)
+				devices = function(httpd, client)
 					api_v1_devices(self, httpd, client)
 				end,
 
-				['/api/v1/introspection'] = function(httpd, client, data)
-					api_v1_introspection(self, httpd, client, data)
+				handles = function(httpd, client, data)
+					local err, json = JSON.decode(data and data.body)
+					if(not err) then
+						api_v1_handles(self, httpd, client, json)
+					else
+						httpd:unicast_json(client, {status='error', message='JSON decoding'})
+					end
 				end
-			}
+			} } }
 		})
 
 		self.dns_sd = dns_sd:new({}, function(db)
 			self.db = db
-			self.httpd:push({status='success', data={href='/api/v1/devices'}})
+			self.httpd:broadcast_json({status='success', data={href='/api/v1/devices'}})
 		end)
-	end
+	end,
 })
 
-local app = chimaerad:new({})
+local chimaerad = app:new({})
 
-return app
+return chimaerad

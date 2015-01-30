@@ -17,16 +17,15 @@
 
 local class = require('class')
 
-local osc_responder = class:new({
-	__call = function(self, time, path, fmt, ...)
-		local root = self._root
+local rest_responder = class:new({
+	__call = function(self, url, ...)
+		local root = self._rest
 
-		for key in string.gmatch(path, '/([^/]+)') do
-			--TODO implement wildcard
+		for key in string.gmatch(url, '/([^/]+)') do
 			root = root and root[key]
 		end
 
-		return root and not root(self, time, ...)
+		return root and not root(self, ...)
 	end,
 
 	_init = function(self)
@@ -34,4 +33,4 @@ local osc_responder = class:new({
 	end
 })
 
-return osc_responder
+return rest_responder

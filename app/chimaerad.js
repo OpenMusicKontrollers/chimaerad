@@ -117,6 +117,8 @@ function devices_toggle(e) {
 		$('.comms').show();
 	else
 		$('.comms').hide();
+	
+	postAPI('/api/v1/handles', {'target':key, 'state':true});
 }
 
 function api_v1_keepalive() {
@@ -185,13 +187,23 @@ function api_v1_devices(reply, status) {
 	$('.comms').hide();
 }
 
+function api_v1_handles(reply, status) {
+	if(status != 'success' || reply.status != 'success') {
+		console.log('api_v1_handles' + reply.message);
+		return;
+	}
+
+	//TODO
+}
+
 var api_v1_get = {
 	'/api/v1/interfaces': api_v1_interfaces,
-	'/api/v1/devices': api_v1_devices
+	'/api/v1/devices': api_v1_devices,
+	'/api/v1/handles': api_v1_handles
 };
 
 function postAPI(url, data) {
-	$.postJSON({url:url, data:data, success:api_v1_post[url]});
+	$.postJSON({url:url, data:data, success:api_v1_get[url]});
 };
 
 function getAPI(url) {
