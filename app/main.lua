@@ -107,11 +107,36 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		end
 
 		self.comm[w.fullname] = OSC.new(uri, function(...)
-			self.engine[w.fullname](...)
-			comm_cb(self, w, ...)
+			return self.engine[w.fullname]
+				and not self.engine[w.fullname](...)
+				or not comm_cb(self, w, ...)
 		end)
 	end
 end
+
+--[[
+conf_responder = osc_responder:new({
+	_root = {
+		stream = {
+			resolve = function(self, time, ...)
+				self(0, '/sensors/number', 'i', 13)
+			end,
+
+			connect = function(self, time, ...)
+				--TODO only used if conf_mode == 'osc.tcp'
+			end
+		},
+
+		success = function(self, time, uid, path, ...)
+
+		end,
+
+		fail = function(self, time, uid, path, msg)
+			print('/fail', uid, path, msg)
+		end
+	}
+})
+--]]
 
 local function api_v1_devices(self, httpd, client)
 	for k, w in pairs(self.db) do
@@ -175,7 +200,7 @@ end
 local chimaerad = class:new({
 	port = 8080,
 
-	init = function(self)
+	_init = function(self)
 		self.ifaces = IFACE.list()
 		self.db = {}
 		self.conf = {}

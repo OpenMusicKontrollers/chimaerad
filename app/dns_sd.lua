@@ -127,7 +127,7 @@ local function browse_cb(self, callback, err, reply)
 end
 
 local dns_sd = class:new({
-	init = function(self, callback)
+	_init = function(self, callback)
 		self.dev = {}
 		self.db = {}
 

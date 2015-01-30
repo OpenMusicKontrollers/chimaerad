@@ -161,6 +161,7 @@ set(ZIP_SOURCES
 
 	main.lua
 	class.lua
+	osc_responder.lua
 	httpd.lua
 	dns_sd.lua
 	midi_out.lua

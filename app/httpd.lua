@@ -106,7 +106,7 @@ local httpd = class:new({
 		end
 	end,
 
-	init = function(self)
+	_init = function(self)
 		self.queue = {}
 		self.clients = {}
 		self.server = HTTP.new(self.port, function(client, data)

@@ -15,26 +15,19 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
 --]]
 
-local class = {
-	new = function(self, o, ...)
-		o = o or {}
+local class = require('class')
 
-		self.__index = rawget(self, '__index') or self
+local osc_responder = class:new({
+	__call = function(self, time, path, fmt, ...)
+		local root = self._root
 
-		self.__gc = function(o)
-			return self._deinit and self._deinit(o)
-		end
+		string.gsub(path, '/([^/\0]*)', function(key)
+			--TODO implement wildcard
+			root = root and root[key]
+		end)
 
-		setmetatable(o, self)
-
-		if(self._init) then
-			self._init(o, ...)
-		end
-
-		return o
+		return root and not root(self, time, ...)
 	end
-}
+})
 
-return class
-
-
+return osc_responder
