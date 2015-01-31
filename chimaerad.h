@@ -57,6 +57,7 @@ struct _rtmem_t {
 
 #if defined(USE_JACK)
 typedef struct _slave_t slave_t;
+typedef struct _job_t job_t;
 
 struct _slave_t {
 	INLIST;
@@ -66,6 +67,12 @@ struct _slave_t {
 
 	jack_port_t *port;
 	jack_ringbuffer_t *rb;
+	jack_default_audio_sample_t sample;
+};
+
+struct _job_t {
+	int add;
+	slave_t *slave;
 };
 #endif
 	
@@ -83,6 +90,7 @@ struct _app_t {
 
 #if defined(USE_JACK)
 	jack_client_t *client;
+	jack_ringbuffer_t *rb;
 	Inlist *slaves;
 #endif
 };

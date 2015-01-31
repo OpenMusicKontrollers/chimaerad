@@ -25,8 +25,6 @@
 
 #include <uv.h>
 
-#include <inlist.h>
-
 #include <jack/midiport.h>
 
 static int
@@ -94,16 +92,33 @@ _gc(lua_State *L)
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	slave_t *slave = luaL_checkudata(L, 1, "jack_midi_t");
 
-	jack_ringbuffer_free(slave->rb);
-	jack_port_unregister(app->client, slave->port);
+	if(slave->rb)
+		jack_ringbuffer_free(slave->rb);
+	slave->rb = NULL;
 
-	app->slaves = inlist_remove(app->slaves, INLIST_GET(slave));
+	if(slave->port)
+		jack_port_unregister(app->client, slave->port);
+	slave->port = NULL;
+
+	if(jack_ringbuffer_write_space(app->rb) >= sizeof(job_t))
+	{
+		job_t job = {
+			.add = 0,
+			.slave = slave
+		};
+
+		if(jack_ringbuffer_write(app->rb, (const char *)&job, sizeof(job_t))
+				!= sizeof(job_t))
+			fprintf(stderr, "[mod_jack_midi] [jack] ringbuffer write error\n");
+	}
+	else
+		fprintf(stderr, "[mod_jack_midi] [jack] ringbuffer overflow\n");
 
 	return 0;
 }
 
 static const luaL_Reg litem [] = {
-	{"_call", _call},
+	{"__call", _call},
 	{"__gc", _gc},
 	{"close", _gc},
 	{NULL, NULL}
@@ -114,6 +129,8 @@ _new(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	slave_t *slave = lua_newuserdata(L, sizeof(slave_t));
+	if(!slave)
+		goto fail;
 	memset(slave, 0, sizeof(slave_t));
 
 	lua_getfield(L, 1, "port");
@@ -122,16 +139,33 @@ _new(lua_State *L)
 
 	slave->process = _process;
 	slave->data = slave;
-	slave->port = jack_port_register(app->client,
-		port, JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0);
-	slave->rb = jack_ringbuffer_create(4096);
+	if(!(slave->port = jack_port_register(app->client, port,
+			JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0)))
+		goto fail;
+	if(!(slave->rb = jack_ringbuffer_create(4096)))
+		goto fail;
 
-	app->slaves = inlist_append(app->slaves, INLIST_GET(slave));
-	//TODO
+	if(jack_ringbuffer_write_space(app->rb) >= sizeof(job_t))
+	{
+		job_t job = {
+			.add = 1,
+			.slave = slave
+		};
+
+		if(jack_ringbuffer_write(app->rb, (const char *)&job, sizeof(job_t))
+				!= sizeof(job_t))
+			fprintf(stderr, "[mod_jack_midi] [jack] ringbuffer write error\n");
+	}
+	else
+		fprintf(stderr, "[mod_jack_midi] [jack] ringbuffer overflow\n");
 
 	luaL_getmetatable(L, "jack_midi_t");
 	lua_setmetatable(L, -2);
 
+	return 1;
+
+fail:
+	lua_pushnil(L);
 	return 1;
 }
 

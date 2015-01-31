@@ -26,6 +26,8 @@ local function on(self, time, sid, gid, pid, x, z, X, Z)
 	local eff_msb = bit32.rshift(eff, 7)
 	local eff_lsb = bit32.band(eff, 0x7f)
 
+	self.gate(0, 1)
+
 	self.midi(0, -- note on
 		bit32.bor(0x90, gid),
 		base,
@@ -56,6 +58,8 @@ end
 local function off(self, time, sid)
 	local gid = self.gids[sid]
 	local base = self.bases[sid]
+	
+	self.gate(0, 0)
 
 	self.midi(0, -- note off
 		bit32.bor(0x80, gid),
@@ -105,6 +109,7 @@ local midi_out = osc_responder:new({
 		--self.midi = RTMIDI.new('UNIX_JACK')
 		--self.midi:open_virtual()
 		self.midi = JACK_MIDI.new({port='midi_out_1'})
+		self.gate = JACK_CV.new({port='gate_1'})
 	end,
 
 	_deinit = function(self)

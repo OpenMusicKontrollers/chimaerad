@@ -159,6 +159,20 @@ static int
 _process(jack_nframes_t nframes, void *data)
 {
 	app_t *app = data;
+	jack_ringbuffer_t *rb = app->rb;
+
+	// append or remove slaves
+	while(jack_ringbuffer_read_space(rb) >= sizeof(job_t))
+	{
+		job_t job;
+		if(jack_ringbuffer_read(rb, (char *)&job, sizeof(job_t)) == sizeof(job_t))
+		{
+			if(job.add)
+				app->slaves = inlist_append(app->slaves, INLIST_GET(job.slave));
+			else // !job.add
+				app->slaves = inlist_remove(app->slaves, INLIST_GET(job.slave));
+		}
+	}
 
 	// loop over registered slaves
 	slave_t *slave;
@@ -194,6 +208,8 @@ main(int argc, char **argv)
 		fprintf(stderr, "[main] [jack] could not open client\n");
 	if(jack_set_process_callback(app.client, _process, &app))
 		fprintf(stderr, "[main] [jack] could not set process callback\n");
+	if(!(app.rb = jack_ringbuffer_create(256)))
+		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
 
 	//TODO deinit jack
 #endif
@@ -278,6 +294,8 @@ main(int argc, char **argv)
 	uv_run(app.loop, UV_RUN_DEFAULT);
 
 #if defined(USE_JACK)
+	if(app.rb)
+		jack_ringbuffer_free(app.rb);
 	if(app.client) {
 		jack_deactivate(app.client);
 		jack_client_close(app.client);
