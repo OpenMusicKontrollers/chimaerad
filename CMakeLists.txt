@@ -41,6 +41,19 @@ set(LIBS ${LIBS} ${UV_LDFLAGS})
 
 # JACK
 option(USE_JACK "use JACK" OFF)
+if(USE_JACK)
+	add_library(mod_jack STATIC
+		mod_jack_midi.c
+		mod_jack_cv.c
+		mod_jack_osc.c)
+	target_compile_definitions(mod_jack PUBLIC -DUSE_JACK)
+
+	# check for metadata support
+	CHECK_INCLUDE_FILES("jack/metadata.h" JACK_HAS_METADATA_API)
+	if(JACK_HAS_METADATA_API)
+		target_compile_definitions(mod_jack PUBLIC -DJACK_HAS_METADATA_API)
+	endif()
+endif()
 
 # RtMidi
 option(USE_SYSTEM_RTMIDI "use System RtMidi" OFF)
@@ -137,6 +150,10 @@ add_executable(chimaerad
 	tlsf-3.0/tlsf.c)
 if(NOT USE_SYSTEM_RTMIDI)
 	target_link_libraries(chimaerad rtmidi)
+endif()
+if(USE_JACK)
+	target_compile_definitions(chimaerad PUBLIC -DUSE_JACK)
+	target_link_libraries(chimaerad mod_jack)
 endif()
 target_link_libraries(chimaerad ${LIBS})
 if(USE_LUAJIT)

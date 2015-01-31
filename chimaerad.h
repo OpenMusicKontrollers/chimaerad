@@ -36,6 +36,16 @@ extern "C" {
 // include Lua
 #include <lua.h>
 
+#if defined(USE_JACK)
+# include <inlist.h>
+#	include <jack/jack.h>
+#	include <jack/ringbuffer.h>
+#	if defined(JACK_HAS_METADATA_API)
+#		include <jack/metadata.h>
+#		include <jack/uuid.h>
+#	endif
+#endif
+
 typedef struct _rtmem_t rtmem_t;
 typedef struct _app_t app_t;
 
@@ -44,6 +54,20 @@ struct _rtmem_t {
 	tlsf_t tlsf;
 	pool_t pool;
 };
+
+#if defined(USE_JACK)
+typedef struct _slave_t slave_t;
+
+struct _slave_t {
+	INLIST;
+
+	JackProcessCallback process;
+	void *data;
+
+	jack_port_t *port;
+	jack_ringbuffer_t *rb;
+};
+#endif
 	
 struct _app_t {
 	uv_loop_t *loop;
@@ -55,6 +79,11 @@ struct _app_t {
 	uv_signal_t sigterm;
 #if defined(SIGQUIT)
 	uv_signal_t sigquit;
+#endif
+
+#if defined(USE_JACK)
+	jack_client_t *client;
+	Inlist *slaves;
 #endif
 };
 
@@ -85,6 +114,11 @@ int luaopen_zip(app_t *app);
 int luaopen_rtmidi(app_t *app);
 int luaopen_iface(app_t *app);
 int luaopen_dns_sd(app_t *app);
+#if defined(USE_JACK)
+int luaopen_jack_midi(app_t *app);
+int luaopen_jack_osc(app_t *app);
+int luaopen_jack_cv(app_t *app);
+#endif
 
 #ifdef __cplusplus
 }

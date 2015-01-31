@@ -154,6 +154,22 @@ _zip_loader(lua_State *L)
 	return 0;
 }
 
+#if defined(USE_JACK)
+static int
+_process(jack_nframes_t nframes, void *data)
+{
+	app_t *app = data;
+
+	// loop over registered slaves
+	slave_t *slave;
+	INLIST_FOREACH(app->slaves, slave)
+		if(slave->process)
+			slave->process(nframes, slave->data);
+
+	return 0;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
@@ -168,6 +184,19 @@ main(int argc, char **argv)
 #endif
 	app.rtmem.tlsf = tlsf_create_with_pool(app.rtmem.area, AREA_SIZE);
 	app.rtmem.pool = tlsf_get_pool(app.rtmem.tlsf);
+
+#if defined(USE_JACK)
+	const char *id = "ChimaeraD"; //FIXME add NSM support
+	const char *server_name = NULL; //FIXME read from command line
+	jack_options_t options = server_name ? JackNullOption | JackServerName : JackNullOption;
+	jack_status_t status;
+	if(!(app.client = jack_client_open(id, options, &status, server_name)))
+		fprintf(stderr, "[main] [jack] could not open client\n");
+	if(jack_set_process_callback(app.client, _process, &app))
+		fprintf(stderr, "[main] [jack] could not set process callback\n");
+
+	//TODO deinit jack
+#endif
 
 	app.loop = uv_default_loop();
 #if defined(USE_LUAJIT)
@@ -184,6 +213,11 @@ main(int argc, char **argv)
 	luaopen_rtmidi(&app);
 	luaopen_iface(&app);
 	luaopen_dns_sd(&app);
+#if defined(USE_JACK)
+	luaopen_jack_midi(&app);
+	luaopen_jack_osc(&app);
+	luaopen_jack_cv(&app);
+#endif
 	lua_pop(app.L, 7);
 	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
 
@@ -215,6 +249,10 @@ main(int argc, char **argv)
 		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
 		lua_pop(app.L, 1);
 	}
+#if defined(USE_JACK)
+	if(jack_activate(app.client))
+		fprintf(stderr, "[main] [jack] could not activate jack client\n");
+#endif
 	
 	app.sigint.data = &app;
 	if((err = uv_signal_init(app.loop, &app.sigint)))
@@ -238,6 +276,13 @@ main(int argc, char **argv)
 
 	_thread_rtprio(60); //TODO make this configurable
 	uv_run(app.loop, UV_RUN_DEFAULT);
+
+#if defined(USE_JACK)
+	if(app.client) {
+		jack_deactivate(app.client);
+		jack_client_close(app.client);
+	}
+#endif
 
 	if(app.io)
 		zip_close(app.io);

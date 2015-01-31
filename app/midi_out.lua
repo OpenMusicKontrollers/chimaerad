@@ -26,25 +26,25 @@ local function on(self, time, sid, gid, pid, x, z, X, Z)
 	local eff_msb = bit32.rshift(eff, 7)
 	local eff_lsb = bit32.band(eff, 0x7f)
 
-	self.midi( -- note on
+	self.midi(0, -- note on
 		bit32.bor(0x90, gid),
 		base,
 		0x7f)
-	self.midi( -- pitch bend
+	self.midi(0, -- pitch bend
 		bit32.bor(0xe0, gid),
 		bit32.band(bend, 0x7f),
 		bit32.rshift(bend, 7))
-	self.midi( -- note pressure
+	self.midi(0, -- note pressure
 		bit32.bor(0xa0, gid),
 		base,
 		eff_msb)
 	if(self.control <= 0xd) then
-		self.midi( -- control change
+		self.midi(0, -- control change
 			bit32.bor(0xb0, gid),
 			bit32.bor(0x20, self.control),
 			eff_lsb)
 	end
-	self.midi( -- control change
+	self.midi(0, -- control change
 		bit32.bor(0xb0, gid),
 		self.control,
 		eff_msb)
@@ -57,7 +57,7 @@ local function off(self, time, sid)
 	local gid = self.gids[sid]
 	local base = self.bases[sid]
 
-	self.midi( -- note off
+	self.midi(0, -- note off
 		bit32.bor(0x80, gid),
 		base,
 		0x7f)
@@ -75,21 +75,21 @@ local function set(self, time, sid, x, z, X, Z)
 	local eff_msb = bit32.rshift(eff, 7)
 	local eff_lsb = bit32.band(eff, 0x7f)
 
-	self.midi( -- pitch bend
+	self.midi(0, -- pitch bend
 		bit32.bor(0xe0, gid),
 		bit32.band(bend, 0x7f),
 		bit32.rshift(bend, 7))
-	self.midi( -- note pressure
+	self.midi(0, -- note pressure
 		bit32.bor(0xa0, gid),
 		base,
 		eff_msb)
 	if(self.control <= 0xd) then
-		self.midi( -- control change
+		self.midi(0, -- control change
 			bit32.bor(0xb0, gid),
 			bit32.bor(0x20, self.control),
 			eff_lsb)
 	end
-	self.midi( -- control change
+	self.midi(0, -- control change
 		bit32.bor(0xb0, gid),
 		self.control,
 		eff_msb)
@@ -102,8 +102,9 @@ local midi_out = osc_responder:new({
 	_init = function(self)
 		self.gids = {}
 		self.bases = {}
-		self.midi = RTMIDI.new('UNIX_JACK')
-		self.midi:open_virtual()
+		--self.midi = RTMIDI.new('UNIX_JACK')
+		--self.midi:open_virtual()
+		self.midi = JACK_MIDI.new({port='midi_out_1'})
 	end,
 
 	_deinit = function(self)

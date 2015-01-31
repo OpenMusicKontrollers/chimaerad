@@ -120,11 +120,12 @@ static int
 _out_send(lua_State *L)
 {
 	mod_rtmidi_out_t *mod_rtmidi = (mod_rtmidi_out_t *)luaL_checkudata(L, 1, "mod_rtmidi_out_t");
-	
-	int n = lua_gettop(L) - 1;
+
+	//int time = luaL_checkint(L, 2);
+	int n = lua_gettop(L) - 2;
 	std::vector<unsigned char> msg(n);
 	for(int i=0; i<n; i++)
-		msg[i] = luaL_checkint(L, i+2);
+		msg[i] = luaL_checkint(L, i+3);
 
   try
 	{
