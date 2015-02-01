@@ -30,10 +30,10 @@
 
 #include <osc.h>
 #include <osc_stream.h>
+#include <mod_osc_common.h>
 
 typedef struct _mod_osc_t mod_osc_t;
 typedef struct _mod_msg_t mod_msg_t;
-typedef struct _mod_blob_t mod_blob_t;
 
 struct _mod_osc_t {
 	lua_State *L;
@@ -46,11 +46,7 @@ struct _mod_msg_t {
 	app_t *app;
 	osc_data_t buf [OSC_STREAM_BUF_SIZE];
 	size_t len;
-};
-
-struct _mod_blob_t {
-	int32_t size;
-	uint8_t buf [0];
+	//TODO timestamp
 };
 
 static void
@@ -77,19 +73,12 @@ _on_sent(osc_stream_t *stream, size_t len, void *data)
 }
 
 static int
-_send(lua_State *L)
+_call(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	mod_osc_t *mod_osc = luaL_checkudata(L, 1, "mod_osc_t");
 
 	if(lua_gettop(L) < 4)
-		return 0;
-
-	osc_time_t tstamp = luaL_checknumber(L, 2);
-	const char *path = luaL_checkstring(L, 3);
-	const char *fmt = luaL_checkstring(L, 4);
-
-	if(!path || !fmt)
 		return 0;
 
 	mod_msg_t *msg = rt_alloc(app, sizeof(mod_msg_t));
@@ -101,99 +90,8 @@ _send(lua_State *L)
 	osc_data_t *ptr = buf;
 	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;
 
-	ptr = osc_set_path(ptr, end, path);
-	ptr = osc_set_fmt(ptr, end, fmt);
-
-	int pos = 5;
-	for(const char *type = fmt; *type; type++)
-		switch(*type)
-		{
-			case OSC_INT32:
-			{
-				int32_t i = luaL_checkint(L, pos++);
-				ptr = osc_set_int32(ptr, end, i);
-				break;
-			}
-			case OSC_FLOAT:
-			{
-				float f = luaL_checknumber(L, pos++);
-				ptr = osc_set_float(ptr, end, f);
-				break;
-			}
-			case OSC_STRING:
-			{
-				const char *s = luaL_checkstring(L, pos++);
-				ptr = osc_set_string(ptr, end, s);
-				break;
-			}
-			case OSC_BLOB:
-			{
-				mod_blob_t *tb = luaL_checkudata(L, pos++, "mod_blob_t");
-				ptr = osc_set_blob(ptr, end, tb->size, tb->buf);
-				break;
-			}
-			
-			case OSC_TIMETAG:
-			{
-				osc_time_t t = luaL_checknumber(L, pos++);
-				ptr = osc_set_timetag(ptr, end, t);
-				break;
-			}
-			case OSC_INT64:
-			{
-				int64_t h = luaL_checknumber(L, pos++);
-				ptr = osc_set_int64(ptr, end, h);
-				break;
-			}
-			case OSC_DOUBLE:
-			{
-				double d = luaL_checknumber(L, pos++);
-				ptr = osc_set_double(ptr, end, d);
-				break;
-			}
-			
-			case OSC_NIL:
-			case OSC_BANG:
-			case OSC_TRUE:
-			case OSC_FALSE:
-				break;
-			
-			case OSC_SYMBOL:
-			{
-				const char *S = luaL_checkstring(L, pos++);
-				ptr = osc_set_symbol(ptr, end, S);
-				break;
-			}
-			case OSC_CHAR:
-			{
-				char c = luaL_checkint(L, pos++);
-				ptr = osc_set_char(ptr, end, c);
-				break;
-			}
-			case OSC_MIDI:
-			{
-				uint8_t *m;
-				ptr = osc_set_midi_inline(ptr, end, &m);
-				if(lua_istable(L, pos))
-				{
-					lua_rawgeti(L, pos, 4);
-					lua_rawgeti(L, pos, 3);
-					lua_rawgeti(L, pos, 2);
-					lua_rawgeti(L, pos, 1);
-					m[0] = luaL_checkint(L, -1);
-					m[1] = luaL_checkint(L, -2);
-					m[2] = luaL_checkint(L, -3);
-					m[3] = luaL_checkint(L, -4);
-					lua_pop(L, 4);
-				}
-				else
-				{
-					memset(m, 0, 4);
-				}
-				pos++;
-				break;
-			}
-		}
+	//osc_time_t tstamp = luaL_checknumber(L, 2); //TODO
+	ptr = mod_osc_encode(L, 3, ptr, end);
 
 	int is_empty = mod_osc->messages == NULL ? 1 : 0;
 
@@ -239,7 +137,7 @@ _gc(lua_State *L)
 }
 
 static const luaL_Reg lmt [] = {
-	{"__call", _send},
+	{"__call", _call},
 	{"__gc", _gc},
 	{"close", _gc},
 	{NULL, NULL}

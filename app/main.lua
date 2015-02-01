@@ -21,6 +21,7 @@ local dns_sd = require('dns_sd')
 
 local midi_out = require('midi_out')
 local cv_out = require('cv_out')
+local osc_out = require('osc_out')
 local tuio2_fltr = require('tuio2_fltr')
 local map = require('map')
 
@@ -103,8 +104,10 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local n = ...
 		local md = midi_out:new({map=map_linear:new({oct=2, n=n}), control=0x4a})
 		local cv = cv_out:new({})
+		local osc = osc_out:new({inst = {'base', 'lead'}})
+		local thru = JACK_OSC.new({port='osc_thru'})
 
-		self.engines[w.fullname] = { md, cv }
+		self.engines[w.fullname] = { md, cv, thru, osc }
 
 		local function fn(...)
 			for _, engine in ipairs(self.engines[w.fullname]) do

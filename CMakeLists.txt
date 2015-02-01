@@ -14,6 +14,8 @@ include_directories(${PROJECT_SOURCE_DIR}/libosc)
 include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
+include_directories(${PROJECT_SOURCE_DIR}/jackey)
+include_directories(${PROJECT_SOURCE_DIR}/jack_osc)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
@@ -129,7 +131,8 @@ add_executable(chimaerad
 	libosc_stream/osc_stream_slip.c
 	libosc_stream/osc_stream_tcp.c
 	libosc_stream/osc_stream_udp.c
-	mod_osc.c
+	mod_osc_common.c
+	mod_osc_stream.c
 # cJSON
 	cJSON/cJSON.c
 	mod_json.c
@@ -184,6 +187,7 @@ set(ZIP_SOURCES
 	dns_sd.lua
 	midi_out.lua
 	cv_out.lua
+	osc_out.lua
 	tuio2_fltr.lua
 	map.lua
 	

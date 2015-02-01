@@ -23,7 +23,11 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-#include <uv.h>
+#	if defined(JACK_HAS_METADATA_API)
+#	include <jackey.h>
+#	include <jack/metadata.h>
+#	include <jack/uuid.h>
+#	endif
 
 typedef struct _cv_event_t cv_event_t;
 
@@ -101,8 +105,7 @@ _gc(lua_State *L)
 	{
 #if defined(JACK_HAS_METADATA_API)
 		jack_uuid_t uuid = jack_port_uuid(slave->port);
-		jack_remove_property(app->client, uuid,
-				"http://jackaudio.org/metadata/signal-type");
+		jack_remove_property(app->client, uuid, JACKEY_SIGNAL_TYPE);
 #endif
 		jack_port_unregister(app->client, slave->port);
 	}
@@ -153,7 +156,7 @@ _new(lua_State *L)
 #if defined(JACK_HAS_METADATA_API)
 	jack_uuid_t uuid = jack_port_uuid(slave->port);
 	if(jack_set_property(app->client, uuid,
-			"http://jackaudio.org/metadata/signal-type", "CV", "text/plain"))
+			JACKEY_SIGNAL_TYPE, "CV", "text/plain"))
 		goto fail;
 #endif
 	if(!(slave->rb = jack_ringbuffer_create(4096)))

@@ -87,9 +87,17 @@ local function tuio2_alv(self, time, ...)
 		end
 		local b = self.blobs[w]
 		if found then
-			self.cb(time, '/set', 'iffff', b[1], b[4], b[5], b[6], b[7])
+			if(b[6] and b[7]) then
+				self.cb(time, '/set', 'iffff', b[1], b[4], b[5], b[6], b[7])
+			else
+				self.cb(time, '/set', 'iff', b[1], b[4], b[5])
+			end
 		else
-			self.cb(time, '/on', 'iiiffff', unpack(b))
+			if(b[6] and b[7]) then
+				self.cb(time, '/on', 'iiiffff', unpack(b))
+			else
+				self.cb(time, '/on', 'iiiff', unpack(b, 1, 5))
+			end
 		end
 	end
 end

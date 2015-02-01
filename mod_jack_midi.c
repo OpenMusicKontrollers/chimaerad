@@ -23,8 +23,6 @@
 #include <lua.h>
 #include <lauxlib.h>
 
-#include <uv.h>
-
 #include <jack/midiport.h>
 
 static int

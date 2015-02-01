@@ -40,10 +40,6 @@ extern "C" {
 # include <inlist.h>
 #	include <jack/jack.h>
 #	include <jack/ringbuffer.h>
-#	if defined(JACK_HAS_METADATA_API)
-#		include <jack/metadata.h>
-#		include <jack/uuid.h>
-#	endif
 #endif
 
 typedef struct _rtmem_t rtmem_t;
