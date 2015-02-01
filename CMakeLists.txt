@@ -183,6 +183,7 @@ set(ZIP_SOURCES
 	httpd.lua
 	dns_sd.lua
 	midi_out.lua
+	cv_out.lua
 	tuio2_fltr.lua
 	map.lua
 	

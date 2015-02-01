@@ -20,6 +20,7 @@ local httpd = require('httpd')
 local dns_sd = require('dns_sd')
 
 local midi_out = require('midi_out')
+local cv_out = require('cv_out')
 local tuio2_fltr = require('tuio2_fltr')
 local map = require('map')
 
@@ -101,16 +102,19 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local uri = string.format('%s://:%i', w.mode, 3333)
 		local n = ...
 		local md = midi_out:new({map=map_linear:new({oct=2, n=n}), control=0x4a})
+		local cv = cv_out:new({})
 
+		self.engines[w.fullname] = {}
 		if(w.mode == 'osc.udp') then
-			self.engine[w.fullname] = tuio2_fltr:new({}, md)
+			table.insert(self.engines[w.fullname], tuio2_fltr:new({}, md))
 		else -- 'osc.tcp'
-			self.engine[w.fullname] = md
+			table.insert(self.engines[w.fullname], md)
 		end
+		table.insert(self.engines[w.fullname], cv)
 
 		self.comm[w.fullname] = OSC.new(uri, function(...)
-			if(self.engine[w.fullname]) then
-				self.engine[w.fullname](...)
+			for _, engine in ipairs(self.engines[w.fullname]) do
+				engine(...)
 			end
 			comm_cb(self, w, ...)
 		end)
@@ -172,10 +176,12 @@ local function api_v1_devices(self, httpd, client)
 	end
 
 	-- close all open deprecated engines
-	for k, w in pairs(self.engine) do
+	for k, engines in pairs(self.engines) do
 		if(not self.db[k] or self.db[k].updated) then
-			w:close()
-			self.engine[k] = nil
+			for _, engine in ipairs(engines) do
+				engine:close()
+			end
+			self.engines[k] = nil
 		end
 	end
 
@@ -210,7 +216,7 @@ local app = class:new({
 		self.db = {}
 		self.conf = {}
 		self.comm = {}
-		self.engine = {}
+		self.engines = {}
 
 		self.httpd = httpd:new({
 			port = 8080,
