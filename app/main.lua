@@ -104,18 +104,20 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local md = midi_out:new({map=map_linear:new({oct=2, n=n}), control=0x4a})
 		local cv = cv_out:new({})
 
-		self.engines[w.fullname] = {}
-		if(w.mode == 'osc.udp') then
-			table.insert(self.engines[w.fullname], tuio2_fltr:new({}, md))
-		else -- 'osc.tcp'
-			table.insert(self.engines[w.fullname], md)
-		end
-		table.insert(self.engines[w.fullname], cv)
+		self.engines[w.fullname] = { md, cv }
 
-		self.comm[w.fullname] = OSC.new(uri, function(...)
+		local function fn(...)
 			for _, engine in ipairs(self.engines[w.fullname]) do
 				engine(...)
 			end
+		end
+
+		if(w.mode == 'osc.udp') then
+			fn = tuio2_fltr:new({}, fn)
+		end
+
+		self.comm[w.fullname] = OSC.new(uri, function(...)
+			fn(...)
 			comm_cb(self, w, ...)
 		end)
 	end

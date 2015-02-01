@@ -52,7 +52,7 @@ local function set(self, time, sid, x, z, X, Z)
 	end
 end
 
-local midi_out = osc_responder:new({
+local cv_out = osc_responder:new({
 	_init = function(self)
 		self.idxs = {}
 
@@ -88,4 +88,4 @@ local midi_out = osc_responder:new({
 	}
 })
 
-return midi_out
+return cv_out
