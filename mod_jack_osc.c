@@ -35,51 +35,87 @@
 
 extern jack_nframes_t jack_ntp_desync(app_t *app, osc_time_t tstamp);
 
+typedef struct _osc_event_t osc_event_t;
+
+struct _osc_event_t
+{
+	INLIST;
+
+	jack_nframes_t time;
+	size_t size;
+	osc_data_t buf [0];
+};
+
+static int
+_sort(const void *data1, const void *data2)
+{
+	const osc_event_t *oev1 = data1;
+	const osc_event_t *oev2 = data2;
+
+	return oev1->time <= oev2->time ? -1 : 1;
+}
+
 static int
 _process(jack_nframes_t nframes, void *data)
 {
 	slave_t *slave = data;
 	jack_ringbuffer_t *rb = slave->rb;
 	jack_osc_event_t jev;
+	osc_event_t *oev;
+	Inlist *l;
 	
 	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
 	void *port_buf = jack_port_get_buffer(slave->port, nframes);
 	jack_osc_clear_buffer(port_buf);
 
+	// drain ringbuffer and add to timely sorted list
 	while(jack_ringbuffer_read_space(rb) >= sizeof(jack_osc_event_t))
 	{
-		if(jack_ringbuffer_peek(rb, (char *)&jev, sizeof(jack_osc_event_t)) 
-			== sizeof(jack_osc_event_t))
+		if(jack_ringbuffer_peek(rb, (char *)&jev, sizeof(jack_osc_event_t)) ==
+			sizeof(jack_osc_event_t))
 		{
-			if(jev.time >= last + nframes)
-				break;
-
-			if(jev.time == 0)
-				jev.time = last;
-			else if(jev.time < last)
-			{
-				fprintf(stderr, "[mod_jack_osc] late event: -%i\n", last - jev.time);
-				jev.time = last;
-			}
-
 			if(jack_ringbuffer_read_space(rb) >= sizeof(jack_osc_event_t) + jev.size)
 			{
-				if(jack_osc_max_event_size(port_buf) >= jev.size)
-				{
-					jack_ringbuffer_read_advance(rb, sizeof(jack_osc_event_t));
+				jack_ringbuffer_read_advance(rb, sizeof(jack_osc_event_t));
 
-					osc_data_t *buf = jack_osc_event_reserve(port_buf, jev.time-last, jev.size);
-					if(buf)
-						jack_ringbuffer_read(rb, (char *)buf, jev.size);
-					else
-					{
-						fprintf(stderr, "[mod_jack_osc] could not reserve event\n");
-						jack_ringbuffer_read_advance(rb, jev.size);
-					}
+				oev = rt_alloc(slave->app, sizeof(osc_event_t) + jev.size);
+				if(oev)
+				{
+					oev->time = jev.time;
+					oev->size = jev.size;
+					jack_ringbuffer_read(rb, (char *)oev->buf, jev.size);
+
+					slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(oev),
+						_sort);
 				}
+				else
+					jack_ringbuffer_read_advance(rb, jev.size);
 			}
 		}
+	}
+
+	// dispatch messages scheduled for this cycle
+	INLIST_FOREACH_SAFE(slave->messages, l, oev)
+	{
+		if(oev->time >= last + nframes)
+			break; // done for this cycle
+		else if(oev->time == 0) // immediate execution
+			oev->time = last;
+		else if(oev->time < last)
+		{
+			fprintf(stderr, "[mod_jack_osc] late event: -%i\n", last - oev->time);
+			oev->time = last;
+		}
+
+		if(jack_osc_max_event_size(port_buf) >= oev->size)
+			jack_osc_event_write(port_buf, oev->time-last, oev->buf, oev->size);
+		else
+			fprintf(stderr, "[mod_jack_osc] osc buffer overflow\n");
+
+
+		slave->messages = inlist_remove(slave->messages, INLIST_GET(oev));
+		rt_free(slave->app, oev);
 	}
 
 	return 0;
@@ -113,9 +149,11 @@ _call(lua_State *L)
 				== sizeof(jack_osc_event_t))
 			{
 				if(jack_ringbuffer_write(rb, (const char *)&buf, jev.size) != jev.size)
-					; //FIXME throw and handle error
+					fprintf(stderr, "[mod_jack_osc] [jack] ringbuffer write error\n");
 			}
 		}
+		else
+			fprintf(stderr, "[mod_jack_osc] [jack] ringbuffer overflow\n");
 	}
 
 	return 0;
@@ -190,7 +228,7 @@ _new(lua_State *L)
 			"OSC", "text/plain"))
 		goto fail;
 #endif
-	if(!(slave->rb = jack_ringbuffer_create(4096)))
+	if(!(slave->rb = jack_ringbuffer_create(0x8000)))
 		goto fail;
 
 	if(jack_ringbuffer_write_space(app->rb) >= sizeof(job_t))

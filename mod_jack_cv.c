@@ -36,16 +36,28 @@ extern jack_nframes_t jack_ntp_desync(app_t *app, osc_time_t tstamp);
 typedef struct _cv_event_t cv_event_t;
 
 struct _cv_event_t {
+	INLIST;
+
 	jack_nframes_t time;
 	jack_default_audio_sample_t sample;
 };
+
+static int
+_sort(const void *data1, const void *data2)
+{
+	const cv_event_t *cev1 = data1;
+	const cv_event_t *cev2 = data2;
+
+	return cev1->time <= cev2->time ? -1 : 1;
+}
 
 static int
 _process(jack_nframes_t nframes, void *data)
 {
 	slave_t *slave = data;
 	jack_ringbuffer_t *rb = slave->rb;
-	cv_event_t cev;
+	cv_event_t *cev;
+	Inlist *l;
 
 	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
@@ -53,30 +65,43 @@ _process(jack_nframes_t nframes, void *data)
 	jack_nframes_t i = 0;
 	jack_default_audio_sample_t sample = slave->sample;
 
+	// drain ringbuffer and add to timely sorted list
 	while(jack_ringbuffer_read_space(rb) >= sizeof(cv_event_t))
 	{
-		if(jack_ringbuffer_peek(rb, (char *)&cev, sizeof(cv_event_t)) 
-			== sizeof(cv_event_t))
+		cev = rt_alloc(slave->app, sizeof(cv_event_t));
+
+		if(jack_ringbuffer_read(rb, (char *)cev, sizeof(cv_event_t)) ==
+			sizeof(cv_event_t))
 		{
-			if(cev.time >= last + nframes)
-				break;
-
-			jack_ringbuffer_read_advance(rb, sizeof(cv_event_t));
-
-			if(cev.time == 0)
-				cev.time = last;
-			else if(cev.time < last)
-			{
-				fprintf(stderr, "[mod_jack_cv] late event: -%i\n", last - cev.time);
-				cev.time = last;
-			}
-			
-			for( ; i<cev.time-last; i++)
-				port_buf[i] = sample;
-			sample = cev.sample;
+			slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(cev),
+				_sort);
 		}
 		else
-			; //FIXME report error
+		{
+			fprintf(stderr, "[mod_jack_cv] ringbuffer read error\n");
+			rt_free(slave->app, cev);
+		}
+	}
+
+	// dispatch messages scheduled for this cycle
+	INLIST_FOREACH_SAFE(slave->messages, l, cev)
+	{
+		if(cev->time >= last + nframes)
+			break; // done for this cycle
+		else if(cev->time == 0) // immediate execution
+			cev->time = last;
+		else if(cev->time < last)
+		{
+			fprintf(stderr, "[mod_jack_cv] late event: -%i\n", last - cev->time);
+			cev->time = last;
+		}
+
+		for( ; i<cev->time - last; i++)
+			port_buf[i] = sample;
+		sample = cev->sample;
+
+		slave->messages = inlist_remove(slave->messages, INLIST_GET(cev));
+		rt_free(slave->app, cev);
 	}
 
 	for( ; i<nframes; i++)
@@ -181,7 +206,7 @@ _new(lua_State *L)
 			JACKEY_SIGNAL_TYPE, "CV", "text/plain"))
 		goto fail;
 #endif
-	if(!(slave->rb = jack_ringbuffer_create(4096)))
+	if(!(slave->rb = jack_ringbuffer_create(0x8000)))
 		goto fail;
 
 	if(jack_ringbuffer_write_space(app->rb) >= sizeof(job_t))

@@ -29,51 +29,87 @@
 
 extern jack_nframes_t jack_ntp_desync(app_t *app, osc_time_t tstamp);
 
+typedef struct _midi_event_t midi_event_t;
+
+struct _midi_event_t
+{
+	INLIST;
+
+	jack_nframes_t time;
+	size_t size;
+	jack_midi_data_t buf [0];
+};
+
+static int
+_sort(const void *data1, const void *data2)
+{
+	const midi_event_t *mev1 = data1;
+	const midi_event_t *mev2 = data2;
+
+	return mev1->time <= mev2->time ? -1 : 1;
+}
+
 static int
 _process(jack_nframes_t nframes, void *data)
 {
 	slave_t *slave = data;
 	jack_ringbuffer_t *rb = slave->rb;
 	jack_midi_event_t jev;
+	midi_event_t *mev;
+	Inlist *l;
 	
 	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
 	void *port_buf = jack_port_get_buffer(slave->port, nframes);
 	jack_midi_clear_buffer(port_buf);
 
+	// drain ringbuffer and add to timely sorted list
 	while(jack_ringbuffer_read_space(rb) >= sizeof(jack_midi_event_t))
 	{
-		if(jack_ringbuffer_peek(rb, (char *)&jev, sizeof(jack_midi_event_t)) 
-			== sizeof(jack_midi_event_t))
+		if(jack_ringbuffer_peek(rb, (char *)&jev, sizeof(jack_midi_event_t)) ==
+			sizeof(jack_midi_event_t))
 		{
-			if(jev.time >= last + nframes)
-				break;
-
-			if(jev.time == 0)
-				jev.time = last;
-			else if(jev.time < last)
-			{
-				fprintf(stderr, "[mod_jack_midi] late event: -%i\n", last - jev.time);
-				jev.time = last;
-			}
-
 			if(jack_ringbuffer_read_space(rb) >= sizeof(jack_midi_event_t) + jev.size)
 			{
-				if(jack_midi_max_event_size(port_buf) >= jev.size)
-				{
-					jack_ringbuffer_read_advance(rb, sizeof(jack_midi_event_t));
+				jack_ringbuffer_read_advance(rb, sizeof(jack_midi_event_t));
 
-					uint8_t *m = jack_midi_event_reserve(port_buf, jev.time-last, jev.size);
-					if(m)
-						jack_ringbuffer_read(rb, (char *)m, jev.size);
-					else
-					{
-						fprintf(stderr, "[mod_jack_midi] could not reserve event\n");
-						jack_ringbuffer_read_advance(rb, jev.size);
-					}
+				mev = rt_alloc(slave->app, sizeof(midi_event_t) + jev.size);
+				if(mev)
+				{
+					mev->time = jev.time;
+					mev->size = jev.size;
+					jack_ringbuffer_read(rb, (char *)mev->buf, jev.size);
+
+					slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(mev),
+						_sort);
 				}
+				else
+					jack_ringbuffer_read_advance(rb, jev.size);
 			}
 		}
+	}
+
+	// dispatch messages scheduled for this cycle
+	INLIST_FOREACH_SAFE(slave->messages, l, mev)
+	{
+		if(mev->time >= last + nframes)
+			break; // done for this cycle
+		else if(mev->time == 0) // immediate execution
+			mev->time = last;
+		else if(mev->time < last)
+		{
+			fprintf(stderr, "[mod_jack_midi] late event: -%i\n", last - mev->time);
+			mev->time = last;
+		}
+
+		if(jack_midi_max_event_size(port_buf) >= mev->size)
+			jack_midi_event_write(port_buf, mev->time-last, mev->buf, mev->size);
+		else
+			fprintf(stderr, "[mod_jack_midi] midi buffer overflow\n");
+
+
+		slave->messages = inlist_remove(slave->messages, INLIST_GET(mev));
+		rt_free(slave->app, mev);
 	}
 
 	return 0;
@@ -167,7 +203,7 @@ _new(lua_State *L)
 	if(!(slave->port = jack_port_register(app->client, port,
 			JACK_DEFAULT_MIDI_TYPE, JackPortIsOutput, 0)))
 		goto fail;
-	if(!(slave->rb = jack_ringbuffer_create(4096)))
+	if(!(slave->rb = jack_ringbuffer_create(0x8000)))
 		goto fail;
 
 	if(jack_ringbuffer_write_space(app->rb) >= sizeof(job_t))

@@ -168,15 +168,16 @@ _jack_ntp_sync(uv_timer_t *handle)
 {
 	app_t *app = handle->data;
 
-	app->sync_jack = jack_get_time() / 2;
+	app->t0 = app->t1;
 
-	clock_gettime(CLOCK_REALTIME, &app->sync_osc);
-	app->sync_osc.tv_sec += JAN_1970;
+	app->t1 = jack_get_time() / 2;
+	clock_gettime(CLOCK_REALTIME, &app->ntp);
+	app->t1 += jack_get_time() / 2;
 	
-	app->sync_jack += jack_get_time() / 2;
+	app->ntp.tv_sec += JAN_1970;
+	app->t1 += 500000; // ideal period of syncer
 
-	if(app->sync_jack < app->sync_last)
-		fprintf(stderr, "[_jack_ntp_sync] time jump after sync\n");
+	app->T = (app->t1 - app->t0) / 0.5; // estimated us/s
 }
 
 jack_nframes_t
@@ -190,17 +191,13 @@ jack_ntp_desync(app_t *app, osc_time_t tstamp)
 	uint32_t tstamp_sec = tstamp >> 32;
 	uint32_t tstamp_frac = tstamp & 0xffffffff;
 
-	if(tstamp_sec >= app->sync_osc.tv_sec)
-		diff = tstamp_sec - app->sync_osc.tv_sec;
-	else
-		diff = -(app->sync_osc.tv_sec - tstamp_sec);
+	diff = tstamp_sec;
+	diff -= app->ntp.tv_sec;
 	diff += tstamp_frac * SLICE;
-	diff -= app->sync_osc.tv_nsec * 1e-9;
+	diff -= app->ntp.tv_nsec * 1e-9;
 
-	jack_time_t future = app->sync_jack + diff*1e6; // us
-	if(future > app->sync_last)
-		app->sync_last = future;
-	return jack_time_to_frames(app->client, future);
+	jack_time_t t = app->t0 + diff * app->T;
+	return jack_time_to_frames(app->client, t);
 }
 
 static int
@@ -266,7 +263,7 @@ main(int argc, char **argv)
 	app.syncer.data = &app;
 	if((err = uv_timer_init(app.loop, &app.syncer)))
 		fprintf(stderr, "[main] [uv_timer_init]: %s\n", uv_err_name(err));
-	if((err = uv_timer_start(&app.syncer, _jack_ntp_sync, 0, 1000))) // ms
+	if((err = uv_timer_start(&app.syncer, _jack_ntp_sync, 0, 500))) // ms
 		fprintf(stderr, "[main] [uv_timer_start]: %s\n", uv_err_name(err));
 #endif
 

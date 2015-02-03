@@ -107,7 +107,8 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local osc = osc_out:new({inst = {'base', 'lead'}})
 		local thru = JACK_OSC.new({port='osc_thru'})
 
-		self.engines[w.fullname] = { md, cv, thru, osc }
+		--self.engines[w.fullname] = { md, cv, thru, osc }
+		self.engines[w.fullname] = { md, osc }
 
 		local function fn(...)
 			for _, engine in ipairs(self.engines[w.fullname]) do
@@ -159,8 +160,8 @@ local function api_v1_devices(self, httpd, client)
 				if(w.reachable) then break end
 			end
 			-- FIXME make this configurable
-			--w.mode = 'osc.tcp'
-			w.mode = 'osc.udp'
+			w.mode = 'osc.tcp'
+			--w.mode = 'osc.udp'
 		end
 	end
 

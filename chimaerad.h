@@ -67,6 +67,8 @@ struct _slave_t {
 	jack_port_t *port;
 	jack_ringbuffer_t *rb;
 	jack_default_audio_sample_t sample;
+
+	Inlist *messages;
 };
 
 struct _job_t {
@@ -93,9 +95,10 @@ struct _app_t {
 	Inlist *slaves;
 
 	uv_timer_t syncer;
-	jack_time_t sync_jack;
-	jack_time_t sync_last;
-	struct timespec sync_osc;
+	struct timespec ntp;
+	jack_time_t t0;
+	jack_time_t t1;
+	double T;
 #endif
 };
 
