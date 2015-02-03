@@ -23,7 +23,11 @@
 #include <lua.h>
 #include <lauxlib.h>
 
+#include <osc.h>
+
 #include <jack/midiport.h>
+
+extern jack_nframes_t jack_ntp_desync(app_t *app, osc_time_t tstamp);
 
 static int
 _process(jack_nframes_t nframes, void *data)
@@ -31,6 +35,8 @@ _process(jack_nframes_t nframes, void *data)
 	slave_t *slave = data;
 	jack_ringbuffer_t *rb = slave->rb;
 	jack_midi_event_t jev;
+	
+	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
 	void *port_buf = jack_port_get_buffer(slave->port, nframes);
 	jack_midi_clear_buffer(port_buf);
@@ -40,14 +46,31 @@ _process(jack_nframes_t nframes, void *data)
 		if(jack_ringbuffer_peek(rb, (char *)&jev, sizeof(jack_midi_event_t)) 
 			== sizeof(jack_midi_event_t))
 		{
+			if(jev.time >= last + nframes)
+				break;
+
+			if(jev.time == 0)
+				jev.time = last;
+			else if(jev.time < last)
+			{
+				fprintf(stderr, "[mod_jack_midi] late event: -%i\n", last - jev.time);
+				jev.time = last;
+			}
+
 			if(jack_ringbuffer_read_space(rb) >= sizeof(jack_midi_event_t) + jev.size)
 			{
 				if(jack_midi_max_event_size(port_buf) >= jev.size)
 				{
 					jack_ringbuffer_read_advance(rb, sizeof(jack_midi_event_t));
 
-					uint8_t *m = jack_midi_event_reserve(port_buf, jev.time, jev.size);
-					jack_ringbuffer_read(rb, (char *)m, jev.size);
+					uint8_t *m = jack_midi_event_reserve(port_buf, jev.time-last, jev.size);
+					if(m)
+						jack_ringbuffer_read(rb, (char *)m, jev.size);
+					else
+					{
+						fprintf(stderr, "[mod_jack_midi] could not reserve event\n");
+						jack_ringbuffer_read_advance(rb, jev.size);
+					}
 				}
 			}
 		}
@@ -59,12 +82,15 @@ _process(jack_nframes_t nframes, void *data)
 static int
 _call(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	slave_t *slave = luaL_checkudata(L, 1, "jack_midi_t");
 	jack_ringbuffer_t *rb = slave->rb;
+	
+	osc_time_t tstamp = luaL_checknumber(L, 2);
 
 	jack_midi_event_t jev;
 
-	jev.time = luaL_checkint(L, 2);
+	jev.time = jack_ntp_desync(app, tstamp);
 	jev.size = lua_gettop(L) - 2;
 
 	if(jack_ringbuffer_write_space(rb) >= sizeof(jack_midi_event_t) + jev.size)
@@ -135,6 +161,7 @@ _new(lua_State *L)
 	const char *port = luaL_optstring(L, -1, "midi_out");
 	lua_pop(L, 1);
 
+	slave->app = app;
 	slave->process = _process;
 	slave->data = slave;
 	if(!(slave->port = jack_port_register(app->client, port,

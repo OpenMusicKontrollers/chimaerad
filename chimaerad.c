@@ -122,6 +122,11 @@ _deinit(app_t *app)
 #if defined(SIGQUIT)
 	uv_signal_stop(&app->sigquit);
 #endif
+
+#if defined(USE_JACK)
+	if(uv_is_active((uv_handle_t *)&app->syncer))
+		uv_timer_stop(&app->syncer);
+#endif
 }
 
 static void
@@ -155,6 +160,44 @@ _zip_loader(lua_State *L)
 }
 
 #if defined(USE_JACK)
+#	define JAN_1970 (uint32_t)0x83aa7e80
+#	include <osc.h>
+
+static void
+_jack_ntp_sync(uv_timer_t *handle)
+{
+	app_t *app = handle->data;
+
+	app->sync_jack = jack_get_time() / 2;
+
+	clock_gettime(CLOCK_REALTIME, &app->sync_osc);
+	app->sync_osc.tv_sec += JAN_1970;
+	
+	app->sync_jack += jack_get_time() / 2;
+}
+
+jack_nframes_t
+jack_ntp_desync(app_t *app, osc_time_t tstamp)
+{
+	double diff; // time difference of OSC timestamp to current wall clock time (s)
+
+	if(tstamp == OSC_IMMEDIATE)
+		return 0; // inject at beginning of next period
+
+	uint32_t tstamp_sec = tstamp >> 32;
+	uint32_t tstamp_frac = tstamp & 0xffffffff;
+
+	if(tstamp_sec >= app->sync_osc.tv_sec)
+		diff = tstamp_sec - app->sync_osc.tv_sec;
+	else
+		diff = -(app->sync_osc.tv_sec - tstamp_sec);
+	diff += tstamp_frac * SLICE;
+	diff -= app->sync_osc.tv_nsec * 1e-9;
+
+	jack_time_t future = app->sync_jack + diff*1e6; // us
+	return jack_time_to_frames(app->client, future);
+}
+
 static int
 _process(jack_nframes_t nframes, void *data)
 {
@@ -188,6 +231,7 @@ int
 main(int argc, char **argv)
 {
 	static app_t app;
+	int err;
 
 #if defined(__WINDOWS__)
 	app.rtmem.area = malloc(AREA_SIZE);
@@ -198,6 +242,9 @@ main(int argc, char **argv)
 #endif
 	app.rtmem.tlsf = tlsf_create_with_pool(app.rtmem.area, AREA_SIZE);
 	app.rtmem.pool = tlsf_get_pool(app.rtmem.tlsf);
+
+	// use default uv_loop
+	app.loop = uv_default_loop();
 
 #if defined(USE_JACK)
 	const char *id = "ChimaeraD"; //FIXME add NSM support
@@ -211,10 +258,13 @@ main(int argc, char **argv)
 	if(!(app.rb = jack_ringbuffer_create(256)))
 		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
 
-	//TODO deinit jack
+	app.syncer.data = &app;
+	if((err = uv_timer_init(app.loop, &app.syncer)))
+		fprintf(stderr, "[main] [uv_timer_init]: %s\n", uv_err_name(err));
+	if((err = uv_timer_start(&app.syncer, _jack_ntp_sync, 0, 1000))) // ms
+		fprintf(stderr, "[main] [uv_timer_start]: %s\n", uv_err_name(err));
 #endif
 
-	app.loop = uv_default_loop();
 #if defined(USE_LUAJIT)
 	app.L = luaL_newstate(); // use LuaJIT internal memory allocator
 #else // Lua 5.1 or 5.2
@@ -237,7 +287,6 @@ main(int argc, char **argv)
 	lua_pop(app.L, 7);
 	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
 
-	int err;
 	app.io = zip_open(argv[1], ZIP_CHECKCONS, &err);
 	if(!app.io)
 		fprintf(stderr, "zip_open: %i\n", err);
@@ -296,6 +345,7 @@ main(int argc, char **argv)
 #if defined(USE_JACK)
 	if(app.rb)
 		jack_ringbuffer_free(app.rb);
+
 	if(app.client) {
 		jack_deactivate(app.client);
 		jack_client_close(app.client);

@@ -23,11 +23,15 @@
 #include <lua.h>
 #include <lauxlib.h>
 
+#include <osc.h>
+
 #	if defined(JACK_HAS_METADATA_API)
 #	include <jackey.h>
 #	include <jack/metadata.h>
 #	include <jack/uuid.h>
 #	endif
+
+extern jack_nframes_t jack_ntp_desync(app_t *app, osc_time_t tstamp);
 
 typedef struct _cv_event_t cv_event_t;
 
@@ -43,16 +47,31 @@ _process(jack_nframes_t nframes, void *data)
 	jack_ringbuffer_t *rb = slave->rb;
 	cv_event_t cev;
 
+	jack_nframes_t last = jack_last_frame_time(slave->app->client);
+
 	jack_default_audio_sample_t *port_buf = jack_port_get_buffer(slave->port, nframes);
 	jack_nframes_t i = 0;
 	jack_default_audio_sample_t sample = slave->sample;
 
 	while(jack_ringbuffer_read_space(rb) >= sizeof(cv_event_t))
 	{
-		if(jack_ringbuffer_read(rb, (char *)&cev, sizeof(cv_event_t)) 
+		if(jack_ringbuffer_peek(rb, (char *)&cev, sizeof(cv_event_t)) 
 			== sizeof(cv_event_t))
 		{
-			for( ; i<cev.time; i++)
+			if(cev.time >= last + nframes)
+				break;
+
+			jack_ringbuffer_read_advance(rb, sizeof(cv_event_t));
+
+			if(cev.time == 0)
+				cev.time = last;
+			else if(cev.time < last)
+			{
+				fprintf(stderr, "[mod_jack_cv] late event: -%i\n", last - cev.time);
+				cev.time = last;
+			}
+			
+			for( ; i<cev.time-last; i++)
 				port_buf[i] = sample;
 			sample = cev.sample;
 		}
@@ -71,12 +90,14 @@ _process(jack_nframes_t nframes, void *data)
 static int
 _call(lua_State *L)
 {
+	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	slave_t *slave = luaL_checkudata(L, 1, "jack_cv_t");
 	jack_ringbuffer_t *rb = slave->rb;
+	
+	osc_time_t tstamp = luaL_checknumber(L, 2);
 
 	cv_event_t cev;
-
-	cev.time = luaL_checkint(L, 2);
+	cev.time = jack_ntp_desync(app, tstamp);
 	cev.sample = luaL_checknumber(L, 3);
 
 	if(jack_ringbuffer_write_space(rb) >= sizeof(cv_event_t))
@@ -148,6 +169,7 @@ _new(lua_State *L)
 	const char *port = luaL_optstring(L, -1, "cv_out");
 	lua_pop(L, 1);
 
+	slave->app = app;
 	slave->process = _process;
 	slave->data = slave;
 	if(!(slave->port = jack_port_register(app->client, port,

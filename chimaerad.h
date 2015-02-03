@@ -37,6 +37,7 @@ extern "C" {
 #include <lua.h>
 
 #if defined(USE_JACK)
+#	define SLICE (double)0x0.00000001p0 // smallest NTP time slice
 # include <inlist.h>
 #	include <jack/jack.h>
 #	include <jack/ringbuffer.h>
@@ -57,6 +58,8 @@ typedef struct _job_t job_t;
 
 struct _slave_t {
 	INLIST;
+
+	app_t *app;
 
 	JackProcessCallback process;
 	void *data;
@@ -88,6 +91,10 @@ struct _app_t {
 	jack_client_t *client;
 	jack_ringbuffer_t *rb;
 	Inlist *slaves;
+
+	uv_timer_t syncer;
+	jack_time_t sync_jack;
+	struct timespec sync_osc;
 #endif
 };
 

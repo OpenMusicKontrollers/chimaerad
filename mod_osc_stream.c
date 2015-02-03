@@ -39,6 +39,7 @@ struct _mod_osc_t {
 	lua_State *L;
 	osc_stream_t stream;
 	Inlist *messages;
+	osc_time_t time;
 };
 
 struct _mod_msg_t {
@@ -46,7 +47,6 @@ struct _mod_msg_t {
 	app_t *app;
 	osc_data_t buf [OSC_STREAM_BUF_SIZE];
 	size_t len;
-	//TODO timestamp
 };
 
 static void
@@ -149,7 +149,7 @@ _stamp(osc_time_t tstamp, void *data)
 	mod_osc_t *mod_osc = data;
 	lua_State *L = mod_osc->L;
 
-	//TODO
+	mod_osc->time = tstamp;
 }
 
 static void
@@ -170,7 +170,7 @@ _message(osc_data_t *buf, size_t len, void *data)
 		ptr = osc_get_fmt(ptr, &fmt);
 		fmt++;
 
-		lua_pushnumber(L, 0); //TODO timestamp
+		lua_pushnumber(L, mod_osc->time);
 		lua_pushstring(L, path);
 		lua_pushstring(L, fmt);
 
