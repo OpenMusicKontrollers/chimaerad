@@ -94,6 +94,7 @@ struct _app_t {
 
 	uv_timer_t syncer;
 	jack_time_t sync_jack;
+	jack_time_t sync_last;
 	struct timespec sync_osc;
 #endif
 };

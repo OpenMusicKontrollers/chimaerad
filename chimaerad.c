@@ -174,6 +174,9 @@ _jack_ntp_sync(uv_timer_t *handle)
 	app->sync_osc.tv_sec += JAN_1970;
 	
 	app->sync_jack += jack_get_time() / 2;
+
+	if(app->sync_jack < app->sync_last)
+		fprintf(stderr, "[_jack_ntp_sync] time jump after sync\n");
 }
 
 jack_nframes_t
@@ -195,6 +198,8 @@ jack_ntp_desync(app_t *app, osc_time_t tstamp)
 	diff -= app->sync_osc.tv_nsec * 1e-9;
 
 	jack_time_t future = app->sync_jack + diff*1e6; // us
+	if(future > app->sync_last)
+		app->sync_last = future;
 	return jack_time_to_frames(app->client, future);
 }
 
