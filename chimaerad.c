@@ -124,6 +124,8 @@ _deinit(app_t *app)
 #endif
 
 #if defined(USE_JACK)
+	if(uv_is_active((uv_handle_t *)&app->asio))
+		uv_close((uv_handle_t *)&app->asio, NULL);
 	if(uv_is_active((uv_handle_t *)&app->syncer))
 		uv_timer_stop(&app->syncer);
 #endif
@@ -162,6 +164,59 @@ _zip_loader(lua_State *L)
 #if defined(USE_JACK)
 #	define JAN_1970 (uint32_t)0x83aa7e80
 #	include <osc.h>
+
+static void
+_asio(uv_async_t *handle)
+{
+	static char str [1024];
+	app_t *app = handle->data;
+	jack_ringbuffer_t *rb = app->rb_msg;
+
+	while(jack_ringbuffer_read_space(rb) >= sizeof(size_t))
+	{
+		size_t size;
+		if(jack_ringbuffer_peek(rb, (char *)&size, sizeof(size_t)) ==
+			sizeof(size_t))
+		{
+			if(jack_ringbuffer_read_space(rb) >= sizeof(size_t) + size)
+			{
+				jack_ringbuffer_read_advance(rb, sizeof(size_t));
+				if(jack_ringbuffer_read(rb, str, size) == size)
+				{
+					str[size] = '\0';
+					fprintf(stderr, "%s", str);
+				}
+			}
+		}
+	}
+	//TODO handle fails
+}
+
+void rt_printf(app_t *app, const char *fmt, ...)
+{
+	static char str [1024];
+	jack_ringbuffer_t *rb = app->rb_msg;
+	va_list list;
+
+	va_start(list, fmt);
+	vsprintf(str, fmt, list);
+	va_end(list);
+
+	size_t size = strlen(str);
+
+	if(jack_ringbuffer_write_space(rb) >= sizeof(size_t) + size)
+	{
+		if(jack_ringbuffer_write(rb, (const char *)&size, sizeof(size_t)) ==
+			sizeof(size_t))
+		{
+			if(jack_ringbuffer_write(rb, str, size) == size)
+				;
+		}
+	}
+	//TODO handle fails
+
+	uv_async_send(&app->asio);
+}
 
 static void
 _jack_ntp_sync(uv_timer_t *handle)
@@ -259,6 +314,12 @@ main(int argc, char **argv)
 		fprintf(stderr, "[main] [jack] could not set process callback\n");
 	if(!(app.rb = jack_ringbuffer_create(256)))
 		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
+	if(!(app.rb_msg = jack_ringbuffer_create(1024)))
+		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
+
+	app.asio.data = &app;
+	if((err = uv_async_init(app.loop, &app.asio, _asio)))
+		fprintf(stderr, "[main] [uv_async_init}: %s\n", uv_err_name(err));
 
 	app.syncer.data = &app;
 	if((err = uv_timer_init(app.loop, &app.syncer)))
@@ -347,6 +408,8 @@ main(int argc, char **argv)
 #if defined(USE_JACK)
 	if(app.rb)
 		jack_ringbuffer_free(app.rb);
+	if(app.rb_msg)
+		jack_ringbuffer_free(app.rb_msg);
 
 	if(app.client) {
 		jack_deactivate(app.client);

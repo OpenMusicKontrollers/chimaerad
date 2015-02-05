@@ -94,6 +94,9 @@ struct _app_t {
 	jack_ringbuffer_t *rb;
 	Inlist *slaves;
 
+	uv_async_t asio;
+	jack_ringbuffer_t *rb_msg;
+
 	uv_timer_t syncer;
 	struct timespec ntp;
 	jack_time_t t0;
@@ -130,6 +133,7 @@ int luaopen_rtmidi(app_t *app);
 int luaopen_iface(app_t *app);
 int luaopen_dns_sd(app_t *app);
 #if defined(USE_JACK)
+void rt_printf(app_t *app, const char *fmt, ...);
 int luaopen_jack_midi(app_t *app);
 int luaopen_jack_osc(app_t *app);
 int luaopen_jack_cv(app_t *app);

@@ -53,6 +53,7 @@ static int
 _process(jack_nframes_t nframes, void *data)
 {
 	slave_t *slave = data;
+	app_t *app = slave->app;
 	jack_ringbuffer_t *rb = slave->rb;
 	jack_midi_event_t jev;
 	midi_event_t *mev;
@@ -61,7 +62,7 @@ _process(jack_nframes_t nframes, void *data)
 	if(!slave->port || !slave->rb)
 		return 0;
 	
-	jack_nframes_t last = jack_last_frame_time(slave->app->client);
+	jack_nframes_t last = jack_last_frame_time(app->client);
 
 	void *port_buf = jack_port_get_buffer(slave->port, nframes);
 	jack_midi_clear_buffer(port_buf);
@@ -76,19 +77,19 @@ _process(jack_nframes_t nframes, void *data)
 			{
 				jack_ringbuffer_read_advance(rb, sizeof(jack_midi_event_t));
 
-				mev = rt_alloc(slave->app, sizeof(midi_event_t) + jev.size);
+				mev = rt_alloc(app, sizeof(midi_event_t) + jev.size);
 				if(mev)
 				{
 					mev->time = jev.time;
 					mev->size = jev.size;
-					jack_ringbuffer_read(rb, (char *)mev->buf, jev.size);
+					jack_ringbuffer_read(rb, (char *)mev->buf, jev.size); //TODO check
 
 					slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(mev),
 						_sort);
 				}
 				else
 				{
-					fprintf(stderr, "[mod_jack_midi] out of memory\n");
+					rt_printf(app, "[mod_jack_midi] out of memory\n");
 					jack_ringbuffer_read_advance(rb, jev.size);
 				}
 			}
@@ -104,18 +105,18 @@ _process(jack_nframes_t nframes, void *data)
 			mev->time = last;
 		else if(mev->time < last)
 		{
-			fprintf(stderr, "[mod_jack_midi] late event: -%i\n", last - mev->time);
+			rt_printf(app, "[mod_jack_midi] late event: -%i\n", last - mev->time);
 			mev->time = last;
 		}
 
 		if(jack_midi_max_event_size(port_buf) >= mev->size)
 			jack_midi_event_write(port_buf, mev->time-last, mev->buf, mev->size);
 		else
-			fprintf(stderr, "[mod_jack_midi] midi buffer overflow\n");
+			rt_printf(app, "[mod_jack_midi] midi buffer overflow\n");
 
 
 		slave->messages = inlist_remove(slave->messages, INLIST_GET(mev));
-		rt_free(slave->app, mev);
+		rt_free(app, mev);
 	}
 
 	return 0;
