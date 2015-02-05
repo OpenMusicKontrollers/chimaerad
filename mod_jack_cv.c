@@ -59,6 +59,9 @@ _process(jack_nframes_t nframes, void *data)
 	cv_event_t *cev;
 	Inlist *l;
 
+	if(!slave->port || !slave->rb)
+		return 0;
+
 	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
 	jack_default_audio_sample_t *port_buf = jack_port_get_buffer(slave->port, nframes);
@@ -69,17 +72,24 @@ _process(jack_nframes_t nframes, void *data)
 	while(jack_ringbuffer_read_space(rb) >= sizeof(cv_event_t))
 	{
 		cev = rt_alloc(slave->app, sizeof(cv_event_t));
-
-		if(jack_ringbuffer_read(rb, (char *)cev, sizeof(cv_event_t)) ==
-			sizeof(cv_event_t))
+		if(cev)
 		{
-			slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(cev),
-				_sort);
+			if(jack_ringbuffer_read(rb, (char *)cev, sizeof(cv_event_t)) ==
+				sizeof(cv_event_t))
+			{
+				slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(cev),
+					_sort);
+			}
+			else
+			{
+				fprintf(stderr, "[mod_jack_cv] ringbuffer read error\n");
+				rt_free(slave->app, cev);
+			}
 		}
 		else
 		{
-			fprintf(stderr, "[mod_jack_cv] ringbuffer read error\n");
-			rt_free(slave->app, cev);
+			fprintf(stderr, "[mod_jack_cv] out of memory\n");
+			jack_ringbuffer_read_advance(rb, sizeof(cv_event_t));
 		}
 	}
 

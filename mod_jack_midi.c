@@ -57,6 +57,9 @@ _process(jack_nframes_t nframes, void *data)
 	jack_midi_event_t jev;
 	midi_event_t *mev;
 	Inlist *l;
+
+	if(!slave->port || !slave->rb)
+		return 0;
 	
 	jack_nframes_t last = jack_last_frame_time(slave->app->client);
 
@@ -84,7 +87,10 @@ _process(jack_nframes_t nframes, void *data)
 						_sort);
 				}
 				else
+				{
+					fprintf(stderr, "[mod_jack_midi] out of memory\n");
 					jack_ringbuffer_read_advance(rb, jev.size);
+				}
 			}
 		}
 	}
