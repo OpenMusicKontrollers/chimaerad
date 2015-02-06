@@ -80,7 +80,7 @@ _process(jack_nframes_t nframes, void *data)
 				mev = rt_alloc(app, sizeof(midi_event_t) + jev.size);
 				if(mev)
 				{
-					mev->time = jev.time;
+					mev->time = jev.time == 0 ? last : jev.time;
 					mev->size = jev.size;
 					jack_ringbuffer_read(rb, (char *)mev->buf, jev.size); //TODO check
 
@@ -101,8 +101,6 @@ _process(jack_nframes_t nframes, void *data)
 	{
 		if(mev->time >= last + nframes)
 			break; // done for this cycle
-		else if(mev->time == 0) // immediate execution
-			mev->time = last;
 		else if(mev->time < last)
 		{
 			rt_printf(app, "[mod_jack_midi] late event: -%i\n", last - mev->time);
