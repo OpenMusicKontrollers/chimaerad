@@ -78,6 +78,8 @@ _process(jack_nframes_t nframes, void *data)
 			if(jack_ringbuffer_read(rb, (char *)cev, sizeof(cv_event_t)) ==
 				sizeof(cv_event_t))
 			{
+				if(cev->time == 0)
+					cev->time = last;
 				slave->messages = inlist_sorted_insert(slave->messages, INLIST_GET(cev),
 					_sort);
 			}
@@ -99,8 +101,6 @@ _process(jack_nframes_t nframes, void *data)
 	{
 		if(cev->time >= last + nframes)
 			break; // done for this cycle
-		else if(cev->time == 0) // immediate execution
-			cev->time = last;
 		else if(cev->time < last)
 		{
 			rt_printf(app, "[mod_jack_cv] late event: -%i\n", last - cev->time);

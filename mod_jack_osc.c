@@ -86,7 +86,7 @@ _process(jack_nframes_t nframes, void *data)
 				oev = rt_alloc(app, sizeof(osc_event_t) + jev.size);
 				if(oev)
 				{
-					oev->time = jev.time;
+					oev->time = jev.time == 0 ? last : jev.time;
 					oev->size = jev.size;
 					jack_ringbuffer_read(rb, (char *)oev->buf, jev.size); //TODO check
 
@@ -107,8 +107,6 @@ _process(jack_nframes_t nframes, void *data)
 	{
 		if(oev->time >= last + nframes)
 			break; // done for this cycle
-		else if(oev->time == 0) // immediate execution
-			oev->time = last;
 		else if(oev->time < last)
 		{
 			rt_printf(app, "[mod_jack_osc] late event: -%i\n", last - oev->time);

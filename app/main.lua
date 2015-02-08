@@ -108,7 +108,7 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local thru = JACK_OSC.new({port='osc_thru'})
 
 		--self.engines[w.fullname] = { md, cv, thru, osc }
-		self.engines[w.fullname] = { md, osc }
+		self.engines[w.fullname] = { thru }
 
 		local function fn(...)
 			for _, engine in ipairs(self.engines[w.fullname]) do
