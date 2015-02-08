@@ -50,10 +50,17 @@ h1 {
   z-index:3; /* This allows the content to overlap the right menu in narrow windows in good browsers. */
 }
 
+.logo {
+	position:fixed;
+	top:0px;
+	right:0px;
+	margin:10px;
+}
+
 .brand {
 	position:fixed;
 	bottom:0px;
-	right:0px;
+	left:0px;
 	margin:10px;
 }
 
