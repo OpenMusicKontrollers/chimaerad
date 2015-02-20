@@ -108,6 +108,7 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		local thru = JACK_OSC.new({port='osc_thru'})
 
 		--self.engines[w.fullname] = { md, cv, thru, osc }
+		--self.engines[w.fullname] = { md, osc }
 		self.engines[w.fullname] = { thru }
 
 		local function fn(...)
@@ -117,7 +118,7 @@ local function conf_cb(self, w, time, path, fmt, uid, target, ...)
 		end
 
 		if(w.mode == 'osc.udp') then
-			fn = tuio2_fltr:new({}, fn)
+			--fn = tuio2_fltr:new({}, fn)
 		end
 
 		self.comm[w.fullname] = OSC.new(uri, function(...)
@@ -160,8 +161,8 @@ local function api_v1_devices(self, httpd, client)
 				if(w.reachable) then break end
 			end
 			-- FIXME make this configurable
-			w.mode = 'osc.tcp'
-			--w.mode = 'osc.udp'
+			--w.mode = 'osc.tcp'
+			w.mode = 'osc.udp'
 		end
 	end
 

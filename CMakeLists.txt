@@ -19,7 +19,7 @@ include_directories(${PROJECT_SOURCE_DIR}/jack_osc)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
-
+	
 if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
 	set(CMAKE_C_FLAGS "-std=gnu99")

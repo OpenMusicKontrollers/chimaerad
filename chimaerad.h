@@ -68,6 +68,8 @@ struct _slave_t {
 	jack_ringbuffer_t *rb;
 	jack_default_audio_sample_t sample;
 
+	volatile int is_dead;
+
 	Inlist *messages;
 };
 

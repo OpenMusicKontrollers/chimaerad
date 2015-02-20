@@ -238,21 +238,30 @@ _jack_ntp_sync(uv_timer_t *handle)
 jack_nframes_t
 jack_ntp_desync(app_t *app, osc_time_t tstamp)
 {
-	double diff; // time difference of OSC timestamp to current wall clock time (s)
-
 	if(tstamp == OSC_IMMEDIATE)
 		return 0; // inject at beginning of next period
+
+	static osc_time_t last_tstamp;
+	static jack_nframes_t last_frame;
+
+	if(tstamp == last_tstamp)
+		return last_frame;
 
 	uint32_t tstamp_sec = tstamp >> 32;
 	uint32_t tstamp_frac = tstamp & 0xffffffff;
 
-	diff = tstamp_sec;
+	double diff = tstamp_sec;
 	diff -= app->ntp.tv_sec;
 	diff += tstamp_frac * SLICE;
 	diff -= app->ntp.tv_nsec * 1e-9;
 
 	jack_time_t t = app->t0 + diff * app->T;
-	return jack_time_to_frames(app->client, t);
+	jack_nframes_t frame = jack_time_to_frames(app->client, t);
+
+	last_tstamp = tstamp;
+	last_frame = frame;
+
+	return frame;
 }
 
 static int
@@ -277,8 +286,10 @@ _process(jack_nframes_t nframes, void *data)
 	// loop over registered slaves
 	slave_t *slave;
 	INLIST_FOREACH(app->slaves, slave)
-		if(slave->process)
+	{
+		if(!slave->is_dead)
 			slave->process(nframes, slave->data);
+	}
 
 	return 0;
 }

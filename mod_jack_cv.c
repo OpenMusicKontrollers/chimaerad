@@ -55,13 +55,14 @@ static int
 _process(jack_nframes_t nframes, void *data)
 {
 	slave_t *slave = data;
+
+	if(!slave || !slave->port || !slave->rb)
+		return 0;
+	
 	app_t *app = slave->app;
 	jack_ringbuffer_t *rb = slave->rb;
 	cv_event_t *cev;
 	Inlist *l;
-
-	if(!slave->port || !slave->rb)
-		return 0;
 
 	jack_nframes_t last = jack_last_frame_time(app->client);
 
@@ -153,6 +154,8 @@ _gc(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	slave_t *slave = luaL_checkudata(L, 1, "jack_cv_t");
+
+	slave->is_dead = 1; //TODO needs to be an atomic operation
 
 	if(slave->rb)
 		jack_ringbuffer_free(slave->rb);
