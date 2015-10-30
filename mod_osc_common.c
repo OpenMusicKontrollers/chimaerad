@@ -37,7 +37,7 @@ mod_osc_encode(lua_State *L, int pos, osc_data_t *buf, osc_data_t *end)
 		{
 			case OSC_INT32:
 			{
-				int32_t i = luaL_checkint(L, pos++);
+				int32_t i = luaL_checkinteger(L, pos++);
 				ptr = osc_set_int32(ptr, end, i);
 				break;
 			}
@@ -93,7 +93,7 @@ mod_osc_encode(lua_State *L, int pos, osc_data_t *buf, osc_data_t *end)
 			}
 			case OSC_CHAR:
 			{
-				char c = luaL_checkint(L, pos++);
+				char c = luaL_checkinteger(L, pos++);
 				ptr = osc_set_char(ptr, end, c);
 				break;
 			}
@@ -107,10 +107,10 @@ mod_osc_encode(lua_State *L, int pos, osc_data_t *buf, osc_data_t *end)
 					lua_rawgeti(L, pos, 3);
 					lua_rawgeti(L, pos, 2);
 					lua_rawgeti(L, pos, 1);
-					m[0] = luaL_checkint(L, -1);
-					m[1] = luaL_checkint(L, -2);
-					m[2] = luaL_checkint(L, -3);
-					m[3] = luaL_checkint(L, -4);
+					m[0] = luaL_checkinteger(L, -1);
+					m[1] = luaL_checkinteger(L, -2);
+					m[2] = luaL_checkinteger(L, -3);
+					m[3] = luaL_checkinteger(L, -4);
 					lua_pop(L, 4);
 				}
 				else

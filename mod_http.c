@@ -415,7 +415,7 @@ static int
 _new(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
-	uint16_t port = luaL_checkint(L, 1);
+	uint16_t port = luaL_checkinteger(L, 1);
 
 	server_t *server = lua_newuserdata(L, sizeof(server_t));
 	if(!server)

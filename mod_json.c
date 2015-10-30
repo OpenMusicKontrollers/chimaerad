@@ -43,7 +43,7 @@ _encode_array(lua_State *L, int idx)
 	lua_pushnil(L);
 	while(lua_next(L, idx))
 	{
-		int pos = luaL_checkint(L, -2);
+		int pos = luaL_checkinteger(L, -2);
 		cJSON *item = _encode_item(L, -1);
 		if(item)
 			cJSON_AddItemToArray(arr, item);

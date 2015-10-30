@@ -334,7 +334,7 @@ fail:
 static int
 _blob(lua_State *L)
 {
-	int size = luaL_checkint(L, 1);
+	int size = luaL_checkinteger(L, 1);
 	mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + size);
 	if(!tb)
 		goto fail;
@@ -365,7 +365,7 @@ _blob_index(lua_State *L)
 	int typ = lua_type(L, 2);
 	if(typ == LUA_TNUMBER)
 	{
-		int index = luaL_checkint(L, 2);
+		int index = luaL_checkinteger(L, 2);
 		if( (index >= 0) && (index < tb->size) )
 			lua_pushnumber(L, tb->buf[index]);
 		else
@@ -383,10 +383,10 @@ static int
 _blob_newindex(lua_State *L)
 {
 	mod_blob_t *tb = luaL_checkudata(L, 1, "mod_blob_t");
-	int index = luaL_checkint(L, 2);
+	int index = luaL_checkinteger(L, 2);
 
 	if( (index >= 0) && (index < tb->size) )
-		tb->buf[index] = luaL_checkint(L, 3);
+		tb->buf[index] = luaL_checkinteger(L, 3);
 
 	return 0;
 }

@@ -142,7 +142,7 @@ _call(lua_State *L)
 		{
 			for(int i=0; i<jev.size; i++)
 			{
-				uint8_t m = luaL_checkint(L, i+3);
+				uint8_t m = luaL_checkinteger(L, i+3);
 				if(jack_ringbuffer_write(rb, (const char *)&m, sizeof(uint8_t)) != sizeof(uint8_t))
 					break; //FIXME throw and handle error
 			}
