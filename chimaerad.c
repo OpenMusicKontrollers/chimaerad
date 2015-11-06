@@ -132,7 +132,7 @@ _sig(uv_signal_t *handle, int signum)
 	_deinit(app);
 }
 
-int
+static int
 _zip_loader(lua_State *L)
 {
 	app_t *app = lua_touserdata(L, lua_upvalueindex(1));

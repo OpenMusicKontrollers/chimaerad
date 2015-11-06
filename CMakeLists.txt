@@ -17,10 +17,15 @@ include_directories(${PROJECT_SOURCE_DIR}/inlist)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
+
+set(CMAKE_C_FLAGS "-std=gnu11 -Wextra -Wno-unused-parameter -ffast-math -fvisibility=hidden ${CMAKE_C_FLAGS}")
+set(CMAKE_C_FLAGS "-Wshadow -Wimplicit-function-declaration -Wmissing-prototypes -Wstrict-prototypes ${CMAKE_C_FLAGS}")
+
+set(CMAKE_CXX_FLAGS "-std=gnu++11 -Wextra -ffast-math -fvisibility=hidden ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wshadow -Wredundant-decls -Weffc++ ${CMAKE_CXX_FLAGS}")
 	
 if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
-	set(CMAKE_C_FLAGS "-std=gnu99")
 	set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -Wl,-Bstatic -lstdc++ -lwinpthread")
 elseif(APPLE)

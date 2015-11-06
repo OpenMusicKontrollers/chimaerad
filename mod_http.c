@@ -71,7 +71,7 @@ _on_client_close(uv_handle_t *handle)
 	_client_remove(client);
 }
 
-void
+static void
 _after_write(uv_write_t *req, int status)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)req->handle;
@@ -334,7 +334,7 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 
 	if(nread >= 0)
 	{
-		size_t parsed = http_parser_execute(&client->parser, &server->http_settings, buf->base, nread);
+		ssize_t parsed = http_parser_execute(&client->parser, &server->http_settings, buf->base, nread);
 
 		if(parsed < nread)
 		{
