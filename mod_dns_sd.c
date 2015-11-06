@@ -29,7 +29,6 @@
 
 #include <inlist.h>
 
-#include <portable_endian.h>
 #if defined(__WINDOWS__)
 #	include <netioapi.h>
 #	ifndef IF_NAMESIZE

@@ -8,12 +8,12 @@ include(CheckIncludeFiles)
 
 include_directories(${PROJECT_SOURCE_DIR})
 include_directories(${PROJECT_BINARY_DIR})
-include_directories(${PROJECT_SOURCE_DIR}/tlsf-3.0)
 include_directories(${PROJECT_SOURCE_DIR}/http-parser)
 include_directories(${PROJECT_SOURCE_DIR}/libosc)
 include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
+include_directories(${PROJECT_SOURCE_DIR}/varchunk)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
@@ -62,14 +62,7 @@ endif()
 
 # chimaerad
 add_executable(chimaerad
-# osc
-	libosc/osc.c
-# osc_stream
-	libosc_stream/osc_stream.c
-	libosc_stream/osc_stream_pipe.c
-	libosc_stream/osc_stream_slip.c
-	libosc_stream/osc_stream_tcp.c
-	libosc_stream/osc_stream_udp.c
+# OSC
 	mod_osc_common.c
 	mod_osc_stream.c
 # cJSON
@@ -85,9 +78,7 @@ add_executable(chimaerad
 # iface
 	mod_iface.c
 # dns_sd
-	mod_dns_sd.c
-# tlsf
-	tlsf-3.0/tlsf.c)
+	mod_dns_sd.c)
 target_link_libraries(chimaerad ${LIBS})
 target_compile_definitions(chimaerad PUBLIC -DAPP_DIR=${APP_DIR})
 install(TARGETS chimaerad DESTINATION bin)

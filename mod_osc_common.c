@@ -15,6 +15,7 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
  */
 
+#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 

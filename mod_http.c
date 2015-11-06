@@ -80,7 +80,7 @@ _after_write(uv_write_t *req, int status)
 	int err;
 
 	if(req->data)
-		rt_free(server->app, req->data);
+		free(req->data);
 
 	if(uv_is_active((uv_handle_t *)handle))
 	{
@@ -102,7 +102,7 @@ _client_send(lua_State *L)
 
 	if(chunk)
 	{
-		client->req.data = rt_alloc(server->app, size);
+		client->req.data = malloc(size);
 		if(!client->req.data)
 			return 0;
 		memcpy(client->req.data, chunk, size);
@@ -320,7 +320,7 @@ _on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
 	client_t *client = handle->data;
 
-	buf->base = rt_alloc(client->server->app, suggested_size);
+	buf->base = malloc(suggested_size);
 	buf->len = buf->base ? suggested_size : 0;
 }
 
@@ -360,7 +360,7 @@ _on_read(uv_stream_t *stream, ssize_t nread, const uv_buf_t *buf)
 	}
 
 	if(buf->base)
-		rt_free(client->server->app, buf->base);
+		free(buf->base);
 }
 
 static void

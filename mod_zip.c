@@ -34,12 +34,12 @@ zip_read(app_t *app, const char *key, size_t *size)
 		struct zip_file *f = zip_fopen(app->io, key, 0);
 		if(f)
 		{
-			uint8_t *str = rt_alloc(app, fsize);
+			uint8_t *str = malloc(fsize);
 			if(str)
 			{
 				if(zip_fread(f, str, fsize) == -1)
 				{
-					rt_free(app, str);
+					free(str);
 					str = NULL;
 					fsize = 0;
 				}
@@ -70,7 +70,7 @@ _call(lua_State *L)
 	if(chunk)
 	{
 		lua_pushlstring(L, (char *)chunk, size);
-		rt_free(app, chunk);
+		free(chunk);
 	}
 	else
 		lua_pushnil(L);

@@ -26,51 +26,25 @@
 
 #include <uv.h>
 
-#include <inlist.h>
+#include <varchunk.h>
 
 #include <osc.h>
 #include <osc_stream.h>
 #include <mod_osc_common.h>
+
+#define BUF_SIZE 0x10000
+#define CHUNK_SIZE 0x1000
 
 typedef struct _mod_osc_t mod_osc_t;
 typedef struct _mod_msg_t mod_msg_t;
 
 struct _mod_osc_t {
 	lua_State *L;
-	osc_stream_t stream;
-	Inlist *messages;
+	osc_stream_t *stream;
 	osc_time_t time;
+	varchunk_t *from_net;
+	varchunk_t *to_net;
 };
-
-struct _mod_msg_t {
-	INLIST;
-	app_t *app;
-	osc_data_t buf [OSC_STREAM_BUF_SIZE];
-	size_t len;
-};
-
-static void
-_trigger(mod_osc_t *mod_osc)
-{
-	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
-
-	if(osc_check_message(msg->buf, msg->len))
-		osc_stream_send(&mod_osc->stream, msg->buf, msg->len);
-}
-
-static void
-_on_sent(osc_stream_t *stream, size_t len, void *data)
-{
-	mod_osc_t *mod_osc = data;
-	lua_State *L = mod_osc->L;
-
-	mod_msg_t *msg = INLIST_CONTAINER_GET(mod_osc->messages, mod_msg_t);
-	mod_osc->messages = inlist_remove(mod_osc->messages, mod_osc->messages);
-	rt_free(msg->app, msg);
-
-	if(mod_osc->messages)
-		_trigger(mod_osc);
-}
 
 static int
 _call(lua_State *L)
@@ -81,31 +55,22 @@ _call(lua_State *L)
 	if(lua_gettop(L) < 4)
 		return 0;
 
-	mod_msg_t *msg = rt_alloc(app, sizeof(mod_msg_t));
-	if(!msg)
-		return 0;
-	msg->app = app;	
-
-	osc_data_t *buf = msg->buf;
-	osc_data_t *ptr = buf;
-	osc_data_t *end = buf + OSC_STREAM_BUF_SIZE;
-
-	//osc_time_t tstamp = luaL_checknumber(L, 2); //TODO
-	ptr = mod_osc_encode(L, 3, ptr, end);
-
-	int is_empty = mod_osc->messages == NULL ? 1 : 0;
-
-	if(ptr)
+	osc_data_t *buf = varchunk_write_request(mod_osc->to_net, CHUNK_SIZE);
+	if(buf)
 	{
-		msg->len = ptr - buf;
-		if(msg->len > 0)
-			mod_osc->messages = inlist_append(mod_osc->messages, INLIST_GET(msg));
-		else
-			rt_free(msg->app, msg);
-	}
+		osc_data_t *ptr = buf;
+		osc_data_t *end = buf + CHUNK_SIZE;
 
-	if(is_empty)
-		_trigger(mod_osc);
+		//osc_time_t tstamp = luaL_checknumber(L, 2); //TODO
+		ptr = mod_osc_encode(L, 3, ptr, end);
+
+		size_t len = ptr - buf;
+		if(len && osc_check_message(buf, len))
+		{
+			varchunk_write_advance(mod_osc->to_net, len);
+			osc_stream_flush(mod_osc->stream);
+		}
+	}
 
 	return 0;
 }
@@ -118,17 +83,11 @@ _gc(lua_State *L)
 	if(!mod_osc)
 		return 0;
 
-	osc_stream_deinit(&mod_osc->stream);
+	osc_stream_free(mod_osc->stream);
+	varchunk_free(mod_osc->from_net);
+	varchunk_free(mod_osc->to_net);
 	mod_osc->L = NULL;
 	
-	Inlist *l;
-	mod_msg_t *msg;
-	INLIST_FOREACH_SAFE(mod_osc->messages, l, msg)
-	{
-		mod_osc->messages = inlist_remove(mod_osc->messages, INLIST_GET(msg));
-		rt_free(msg->app, msg);
-	}
-
 	lua_pushlightuserdata(L, mod_osc);
 	lua_pushnil(L);
 	lua_rawset(L, LUA_REGISTRYINDEX);
@@ -153,12 +112,12 @@ _stamp(osc_time_t tstamp, void *data)
 }
 
 static void
-_message(osc_data_t *buf, size_t len, void *data)
+_message(const osc_data_t *buf, size_t len, void *data)
 {
 	mod_osc_t *mod_osc = data;
 	lua_State *L = mod_osc->L;
 
-	osc_data_t *ptr = buf;
+	const osc_data_t *ptr = buf;
 	const char *path;
 	const char *fmt;
 			
@@ -260,7 +219,7 @@ _message(osc_data_t *buf, size_t len, void *data)
 				}
 				case OSC_MIDI:
 				{
-					uint8_t *m;
+					const uint8_t *m;
 					ptr = osc_get_midi(ptr, &m);
 					lua_createtable(L, 4, 0);
 					lua_pushnumber(L, m[0]);
@@ -293,14 +252,63 @@ static const osc_unroll_inject_t inject = {
 	.bundle = NULL
 };
 
-static void
-_on_recv(osc_stream_t *stream, osc_data_t *buf, size_t len, void *data)
+static void *
+_data_recv_req(size_t size, void *data)
 {
 	mod_osc_t *mod_osc = data;
 
-	if(!osc_unroll_packet(buf, len, OSC_UNROLL_MODE_FULL, (osc_unroll_inject_t *)&inject, mod_osc))
-		fprintf(stderr, "invalid OSC packet\n");
+	return varchunk_write_request(mod_osc->from_net, size);
 }
+
+static void
+_data_recv_adv(size_t written, void *data)
+{
+	mod_osc_t *mod_osc = data;
+
+	varchunk_write_advance(mod_osc->from_net, written);
+
+	const osc_data_t *ptr;
+	size_t size;
+	while((ptr = varchunk_read_request(mod_osc->from_net, &size)))
+	{
+		if(!osc_unroll_packet((osc_data_t *)ptr, size, OSC_UNROLL_MODE_FULL, (osc_unroll_inject_t *)&inject, mod_osc))
+			fprintf(stderr, "invalid OSC packet\n");
+
+		varchunk_read_advance(mod_osc->from_net);		
+	}
+}
+
+static const void *
+_data_send_req(size_t *len, void *data)
+{
+	mod_osc_t *mod_osc = data;
+
+	return varchunk_read_request(mod_osc->to_net, len);
+}
+
+static void
+_data_send_adv(void *data)
+{
+	mod_osc_t *mod_osc = data;
+
+	varchunk_read_advance(mod_osc->to_net);
+}
+
+static void
+_data_free(void *data)
+{
+	mod_osc_t *mod_osc = data;
+
+	mod_osc->stream = NULL;
+}
+
+static const osc_stream_driver_t driver = {
+	.recv_req = _data_recv_req,
+	.recv_adv = _data_recv_adv,
+	.send_req = _data_send_req,
+	.send_adv = _data_send_adv,
+	.free = _data_free
+};
 
 static int
 _new(lua_State *L)
@@ -314,7 +322,12 @@ _new(lua_State *L)
 	memset(mod_osc, 0, sizeof(mod_osc_t));
 	mod_osc->L = L;
 
-	if(osc_stream_init(app->loop, &mod_osc->stream, url, _on_recv, _on_sent, mod_osc))
+	if(!(mod_osc->stream = osc_stream_new(app->loop, url, &driver, mod_osc)))
+		goto fail;
+	
+	if(!(mod_osc->from_net = varchunk_new(BUF_SIZE)))
+		goto fail;
+	if(!(mod_osc->to_net = varchunk_new(BUF_SIZE)))
 		goto fail;
 
 	luaL_getmetatable(L, "mod_osc_t");

@@ -114,7 +114,7 @@ _encode(lua_State *L)
 		char *json = cJSON_PrintUnformatted(root);
 		lua_pushnil(L); // no error
 		lua_pushstring(L, json);
-		rt_free(app, json);
+		free(json);
 		cJSON_Delete(root);
 	}
 	else
@@ -217,13 +217,13 @@ static const luaL_Reg ljson [] = {
 static void *
 _malloc_fn(size_t size)
 {
-	return rt_alloc(app_ptr, size);
+	return malloc(size);
 }
 
 static void
 _free_fn(void *ptr)
 {
-	rt_free(app_ptr, ptr);
+	free(ptr);
 }
 
 int
