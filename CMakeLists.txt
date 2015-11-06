@@ -45,7 +45,7 @@ include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
 # lua
-pkg_search_module(LUA REQUIRED lua>=5.3 lua5.3)
+pkg_search_module(LUA REQUIRED lua>=5.2 lua5.3 lua5.2)
 include_directories(${LUA_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${LUA_LDFLAGS})
 

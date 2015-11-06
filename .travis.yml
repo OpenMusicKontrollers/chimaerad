@@ -18,7 +18,7 @@ before_install:
 install:
  - ifmac brew install lua libzip libuv
  - iflin pushd libuv-1.7.5 && iflin sh autogen.sh && iflin ./configure --prefix=/usr && iflin make && iflin sudo make install && iflin popd
- - iflin sudo apt-get install -y liblua-dev libzip-dev zip
+ - iflin sudo apt-get install -y liblua5.2-dev libzip-dev zip
 before_script:
  - mkdir build && pushd build
  - ifmac cmake ..
