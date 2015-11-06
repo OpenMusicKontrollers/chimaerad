@@ -20,7 +20,6 @@
 
 #include <chimaerad.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -44,7 +43,9 @@ zip_read(app_t *app, const char *key, size_t *size)
 					fsize = 0;
 				}
 				else
+				{
 					; //success
+				}
 			}
 			zip_fclose(f);
 
@@ -88,8 +89,10 @@ luaopen_zip(app_t *app)
 {
 	lua_State *L = app->L;
 
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "ZIP", lzip, 1);		
+	luaL_setfuncs(L, lzip, 1);
+	lua_setglobal(L, "ZIP");
 
-	return 1;
+	return 0;
 }

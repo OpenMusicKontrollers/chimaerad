@@ -22,6 +22,10 @@
 #include <uv.h>
 
 #if (defined(_WIN16) || defined(_WIN32) || defined(_WIN64)) && !defined(__WINDOWS__)
+#	define __WINDOWS__
+#endif
+
+#ifdef __WINDOWS__
 #	define ZIP_EXTERN __declspec(dllexport) // needed for static linking with mingw-w64
 #endif
 #include <zip.h>

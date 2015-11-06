@@ -20,7 +20,6 @@
 
 #include <chimaerad.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -49,7 +48,7 @@ struct _mod_osc_t {
 static int
 _call(lua_State *L)
 {
-	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
+	//app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 	mod_osc_t *mod_osc = luaL_checkudata(L, 1, "mod_osc_t");
 
 	if(lua_gettop(L) < 4)
@@ -106,7 +105,7 @@ static void
 _stamp(osc_time_t tstamp, void *data)
 {
 	mod_osc_t *mod_osc = data;
-	lua_State *L = mod_osc->L;
+	//lua_State *L = mod_osc->L;
 
 	mod_osc->time = tstamp;
 }
@@ -118,8 +117,8 @@ _message(const osc_data_t *buf, size_t len, void *data)
 	lua_State *L = mod_osc->L;
 
 	const osc_data_t *ptr = buf;
-	const char *path;
-	const char *fmt;
+	const char *path = NULL;
+	const char *fmt = NULL;
 			
 	lua_pushlightuserdata(L, mod_osc);
 	lua_rawget(L, LUA_REGISTRYINDEX);
@@ -139,61 +138,63 @@ _message(const osc_data_t *buf, size_t len, void *data)
 				case OSC_INT32:
 				{
 					int32_t i;
-					ptr = osc_get_int32(ptr, &i);
-					lua_pushnumber(L, i);
+					if((ptr = osc_get_int32(ptr, &i)))
+						lua_pushnumber(L, i);
 					break;
 				}
 				case OSC_FLOAT:
 				{
 					float f;
-					ptr = osc_get_float(ptr, &f);
-					lua_pushnumber(L, f);
+					if((ptr = osc_get_float(ptr, &f)))
+						lua_pushnumber(L, f);
 					break;
 				}
 				case OSC_STRING:
 				{
 					const char *s;
-					ptr = osc_get_string(ptr, &s);
-					lua_pushstring(L, s);
+					if((ptr = osc_get_string(ptr, &s)))
+						lua_pushstring(L, s);
 					break;
 				}
 				case OSC_BLOB:
 				{
 					osc_blob_t b;
-					ptr = osc_get_blob(ptr, &b);
-					mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + b.size);
-					if(tb)
+					if((ptr = osc_get_blob(ptr, &b)))
 					{
-						tb->size = b.size;
-						memcpy(tb->buf, b.payload, b.size);
-						
-						luaL_getmetatable(L, "mod_blob_t");
-						lua_setmetatable(L, -2);
+						mod_blob_t *tb = lua_newuserdata(L, sizeof(mod_blob_t) + b.size);
+						if(tb)
+						{
+							tb->size = b.size;
+							memcpy(tb->buf, b.payload, b.size);
+							
+							luaL_getmetatable(L, "mod_blob_t");
+							lua_setmetatable(L, -2);
+						}
+						else
+							lua_pushnil(L);
 					}
-					else
-						lua_pushnil(L);
 					break;
 				}
 				
 				case OSC_TIMETAG:
 				{
 					osc_time_t t;
-					ptr = osc_get_timetag(ptr, &t);
-					lua_pushnumber(L, t);
+					if((ptr = osc_get_timetag(ptr, &t)))
+						lua_pushnumber(L, t);
 					break;
 				}
 				case OSC_INT64:
 				{
 					int64_t h;
-					ptr = osc_get_int64(ptr, &h);
-					lua_pushnumber(L, h);
+					if((ptr = osc_get_int64(ptr, &h)))
+						lua_pushnumber(L, h);
 					break;
 				}
 				case OSC_DOUBLE:
 				{
 					double d;
-					ptr = osc_get_double(ptr, &d);
-					lua_pushnumber(L, d);
+					if((ptr = osc_get_double(ptr, &d)))
+						lua_pushnumber(L, d);
 					break;
 				}
 				
@@ -206,30 +207,32 @@ _message(const osc_data_t *buf, size_t len, void *data)
 				case OSC_SYMBOL:
 				{
 					const char *S;
-					ptr = osc_get_symbol(ptr, &S);
-					lua_pushstring(L, S);
+					if((ptr = osc_get_symbol(ptr, &S)))
+						lua_pushstring(L, S);
 					break;
 				}
 				case OSC_CHAR:
 				{
 					char c;
-					ptr = osc_get_char(ptr, &c);
-					lua_pushnumber(L, c);
+					if((ptr = osc_get_char(ptr, &c)))
+						lua_pushnumber(L, c);
 					break;
 				}
 				case OSC_MIDI:
 				{
 					const uint8_t *m;
-					ptr = osc_get_midi(ptr, &m);
-					lua_createtable(L, 4, 0);
-					lua_pushnumber(L, m[0]);
-					lua_rawseti(L, -2, 1);
-					lua_pushnumber(L, m[1]);
-					lua_rawseti(L, -2, 2);
-					lua_pushnumber(L, m[2]);
-					lua_rawseti(L, -2, 3);
-					lua_pushnumber(L, m[3]);
-					lua_rawseti(L, -2, 4);
+					if((ptr = osc_get_midi(ptr, &m)))
+					{
+						lua_createtable(L, 4, 0);
+						lua_pushnumber(L, m[0]);
+						lua_rawseti(L, -2, 1);
+						lua_pushnumber(L, m[1]);
+						lua_rawseti(L, -2, 2);
+						lua_pushnumber(L, m[2]);
+						lua_rawseti(L, -2, 3);
+						lua_pushnumber(L, m[3]);
+						lua_rawseti(L, -2, 4);
+					}
 					break;
 				}
 			}
@@ -242,8 +245,6 @@ _message(const osc_data_t *buf, size_t len, void *data)
 	}
 	else
 		lua_pop(L, 1);
-		
-	lua_gc(L, LUA_GCSTEP, 0);
 }
 
 static const osc_unroll_inject_t inject = {
@@ -430,18 +431,20 @@ luaopen_osc(app_t *app)
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, lmt, 1);
+	luaL_setfuncs(L, lmt, 1);
 	lua_pop(L, 1);
 	
 	luaL_newmetatable(L, "mod_blob_t");
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, lblob, 1);
+	luaL_setfuncs(L, lblob, 1);
 	lua_pop(L, 1);
 
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "OSC", losc, 1);
+	luaL_setfuncs(L, losc, 1);
+	lua_setglobal(L, "OSC");
 
-	return 1;
+	return 0;
 }

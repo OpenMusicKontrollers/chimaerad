@@ -15,7 +15,6 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
  */
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -101,22 +100,24 @@ mod_osc_encode(lua_State *L, int pos, osc_data_t *buf, osc_data_t *end)
 			case OSC_MIDI:
 			{
 				uint8_t *m;
-				ptr = osc_set_midi_inline(ptr, end, &m);
-				if(lua_istable(L, pos))
+				if((ptr = osc_set_midi_inline(ptr, end, &m)))
 				{
-					lua_rawgeti(L, pos, 4);
-					lua_rawgeti(L, pos, 3);
-					lua_rawgeti(L, pos, 2);
-					lua_rawgeti(L, pos, 1);
-					m[0] = luaL_checkinteger(L, -1);
-					m[1] = luaL_checkinteger(L, -2);
-					m[2] = luaL_checkinteger(L, -3);
-					m[3] = luaL_checkinteger(L, -4);
-					lua_pop(L, 4);
-				}
-				else
-				{
-					memset(m, 0, 4);
+					if(lua_istable(L, pos))
+					{
+						lua_rawgeti(L, pos, 4);
+						lua_rawgeti(L, pos, 3);
+						lua_rawgeti(L, pos, 2);
+						lua_rawgeti(L, pos, 1);
+						m[0] = luaL_checkinteger(L, -1);
+						m[1] = luaL_checkinteger(L, -2);
+						m[2] = luaL_checkinteger(L, -3);
+						m[3] = luaL_checkinteger(L, -4);
+						lua_pop(L, 4);
+					}
+					else
+					{
+						memset(m, 0, 4);
+					}
 				}
 				pos++;
 				break;

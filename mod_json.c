@@ -19,7 +19,6 @@
 
 #include <chimaerad.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -28,8 +27,6 @@
 #endif
 
 #include <cJSON.h>
-
-static app_t *app_ptr; //FIXME try to circumvent static global
 
 // forward declaration
 static cJSON * _encode_item(lua_State *L, int idx);
@@ -106,7 +103,7 @@ _encode_item(lua_State *L, int idx)
 static int
 _encode(lua_State *L)
 {
-	app_t *app = lua_touserdata(L, lua_upvalueindex(1));
+	//app_t *app = lua_touserdata(L, lua_upvalueindex(1));
 
 	if(lua_istable(L, 1) && !lua_objlen(L, 1))
 	{
@@ -214,32 +211,15 @@ static const luaL_Reg ljson [] = {
 	{NULL, NULL}
 };
 
-static void *
-_malloc_fn(size_t size)
-{
-	return malloc(size);
-}
-
-static void
-_free_fn(void *ptr)
-{
-	free(ptr);
-}
-
 int
 luaopen_json(app_t *app)
 {
 	lua_State *L = app->L;
 
-	app_ptr = app;
-	cJSON_Hooks hooks = {
-		.malloc_fn = _malloc_fn,
-		.free_fn = _free_fn
-	};
-	cJSON_InitHooks(&hooks);
-
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "JSON", ljson, 1);
+	luaL_setfuncs(L, ljson, 1);
+	lua_setglobal(L, "JSON");
 
-	return 1;
+	return 0;
 }

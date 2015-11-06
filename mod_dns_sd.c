@@ -20,8 +20,8 @@
 #include <stdint.h>
 
 #include <chimaerad.h>
+#include <osc.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -29,8 +29,11 @@
 
 #include <inlist.h>
 
-#if defined(__WINDOWS__)
+#ifdef __WINDOWS__
 #	include <netioapi.h>
+#	ifndef NDIS_IF_MAX_STRING_SIZE
+#		define NDIS_IF_MAX_STRING_SIZE 64 // FIXME if_nametoindex, if_indextoname only supported >= Vista
+#	endif
 #	ifndef IF_NAMESIZE
 #		define IF_NAMESIZE 64 // FIXME if_nametoindex, if_indextoname only supported >= Vista
 #	endif
@@ -157,8 +160,6 @@ _browse_cb(
 	}
 	else
 		lua_pop(L, 1);
-
-	lua_gc(L, LUA_GCCOLLECT, 0);
 }
 
 static int
@@ -303,8 +304,6 @@ _resolve_cb(
 	if(item->ref)
 		DNSServiceRefDeallocate(item->ref);
 	item->ref = NULL;
-
-	lua_gc(L, LUA_GCCOLLECT, 0);
 }
 
 static int
@@ -464,8 +463,6 @@ _query_ip_cb(
 		lua_pop(L, 1);
 
 	// Query request are kept running to listen for IP changes
-
-	lua_gc(L, LUA_GCCOLLECT, 0);
 }
 
 static int
@@ -620,8 +617,6 @@ _query_txt_cb(
 		lua_pop(L, 1);
 
 	// Query request are kept running to listen for TXT changes
-
-	lua_gc(L, LUA_GCCOLLECT, 0);
 }
 
 static int
@@ -654,7 +649,7 @@ _query_txt(lua_State *L)
 #endif
 
 	lua_getfield(L, 1, "target");
-	const char *target = luaL_checkstring(L, -1);
+	//const char *target = luaL_checkstring(L, -1);
 	lua_pop(L, 1);
 
 	lua_getfield(L, 1, "fullname");
@@ -710,11 +705,13 @@ luaopen_dns_sd(app_t *app)
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, litem, 1);
+	luaL_setfuncs(L, litem, 1);
 	lua_pop(L, 1);
 
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "DNS_SD", ldns_sd, 1);
+	luaL_setfuncs(L, ldns_sd, 1);
+	lua_setglobal(L, "DNS_SD");
 
-	return 1;
+	return 0;
 }

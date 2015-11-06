@@ -23,11 +23,11 @@ set(CMAKE_C_FLAGS "-Wshadow -Wimplicit-function-declaration -Wmissing-prototypes
 
 set(CMAKE_CXX_FLAGS "-std=gnu++11 -Wextra -ffast-math -fvisibility=hidden ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS "-Wshadow -Wredundant-decls -Weffc++ ${CMAKE_CXX_FLAGS}")
-	
+
 if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
 	set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
-	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -Wl,-Bstatic -lstdc++ -lwinpthread")
+	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -Wl,-Bstatic -lstdc++ -lwinpthread -luserenv")
 elseif(APPLE)
 	if(CMAKE_SIZEOF_VOID_P MATCHES "8")
 		set(CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000")
@@ -35,7 +35,7 @@ elseif(APPLE)
 endif()
 
 # libzip
-pkg_search_module(ZIP REQUIRED libzip>=0.10)
+pkg_search_module(ZIP REQUIRED libzip>=1.0.0)
 include_directories(${ZIP_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${ZIP_LDFLAGS})
 
@@ -45,7 +45,7 @@ include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
 # lua
-pkg_search_module(LUA REQUIRED lua>=5.1 lua5.3 lua5.2 lua5.1)
+pkg_search_module(LUA REQUIRED lua>=5.3 lua5.3)
 include_directories(${LUA_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${LUA_LDFLAGS})
 

@@ -74,13 +74,13 @@ _zip_loader(lua_State *L)
 	uint8_t *chunk = zip_read(app, key, &size);
 	if(chunk)
 	{
-		//printf("_zip_loader: %s %zu\n", key, size);
 		luaL_loadbuffer(L, (char *)chunk, size, module);
 		free(chunk);
-		return 1;
 	}
+	else
+		lua_pushstring(L, "module not found");
 
-	return 0;
+	return 1;
 }
 
 int
@@ -93,6 +93,8 @@ main(int argc, char **argv)
 	app.loop = uv_default_loop();
 
 	app.L = luaL_newstate();
+	if(!app.L)
+		fprintf(stderr, "failed to create Lua state\n");
 
 	luaL_openlibs(app.L);
 	luaopen_json(&app);
@@ -101,14 +103,11 @@ main(int argc, char **argv)
 	luaopen_zip(&app);
 	luaopen_iface(&app);
 	luaopen_dns_sd(&app);
-	lua_pop(app.L, 7);
-	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
 
 	app.io = zip_open(argv[1], ZIP_CHECKCONS, &err);
 	if(!app.io)
 		fprintf(stderr, "zip_open: %i\n", err);
 	
-	// overwrite loader functions with our own FIXME only works for LuaJIT & Lua5.1
 	lua_getglobal(app.L, "package");
 	if(lua_istable(app.L, -1))
 	{
@@ -118,14 +117,10 @@ main(int argc, char **argv)
 			lua_pushcclosure(app.L, _zip_loader, 1);
 			lua_rawseti(app.L, -2, 1);
 		}
-#if LUA_VERSION_NUM >= 502
 		lua_setfield(app.L, -2, "searchers");
-#else
-		lua_setfield(app.L, -2, "loaders");
-#endif
 	}
 	lua_pop(app.L, 1); // package
-	
+
 	if(luaL_dostring(app.L, "_main = require('main')"))
 	{
 		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));

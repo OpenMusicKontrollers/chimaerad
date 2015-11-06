@@ -20,7 +20,6 @@
 
 #include <chimaerad.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -75,8 +74,8 @@ static void
 _after_write(uv_write_t *req, int status)
 {
 	uv_tcp_t *handle = (uv_tcp_t *)req->handle;
-	client_t *client = handle->data;
-	server_t *server = client->server;
+	//client_t *client = handle->data;
+	//server_t *server = client->server;
 	int err;
 
 	if(req->data)
@@ -94,7 +93,7 @@ static int
 _client_send(lua_State *L)
 {
 	client_t *client = luaL_checkudata(L, 1, "client_t");
-	server_t *server = client->server;
+	//server_t *server = client->server;
 
 	size_t size;
 	const char *chunk= luaL_checklstring(L, -1, &size);
@@ -182,9 +181,9 @@ _on_message_begin(http_parser *parser)
 static int
 _on_headers_complete(http_parser *parser)
 {
-	client_t *client = parser->data;
-	server_t *server = client->server;
-	lua_State *L = server->L;
+	//client_t *client = parser->data;
+	//server_t *server = client->server;
+	//lua_State *L = server->L;
 
 	// do nothing
 
@@ -221,8 +220,6 @@ _on_message_complete(http_parser *parser)
 	lua_pushlightuserdata(L, parser);
 	lua_pushnil(L);
 	lua_rawset(L, LUA_REGISTRYINDEX);
-		
-	lua_gc(L, LUA_GCCOLLECT, 0);
 
 	return 0;
 }
@@ -318,7 +315,7 @@ _on_body(http_parser *parser, const char *at, size_t len)
 static void
 _on_alloc(uv_handle_t *handle, size_t suggested_size, uv_buf_t *buf)
 {
-	client_t *client = handle->data;
+	//client_t *client = handle->data;
 
 	buf->base = malloc(suggested_size);
 	buf->len = buf->base ? suggested_size : 0;
@@ -490,18 +487,20 @@ luaopen_http(app_t *app)
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, lserver, 1);
+	luaL_setfuncs(L, lserver, 1);
 	lua_pop(L, 1);
 	
 	luaL_newmetatable(L, "client_t");
 	lua_pushvalue(L, -1);
 	lua_setfield(L, -2, "__index");
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, NULL, lclient, 1);
+	luaL_setfuncs(L, lclient, 1);
 	lua_pop(L, 1);
 
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "HTTP", lhttp, 1);
+	luaL_setfuncs(L, lhttp, 1);
+	lua_setglobal(L, "HTTP");
 
-	return 1;
+	return 0;
 }

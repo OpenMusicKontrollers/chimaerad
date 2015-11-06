@@ -19,7 +19,6 @@
 
 #include <chimaerad.h>
 
-#define LUA_COMPAT_MODULE
 #include <lua.h>
 #include <lauxlib.h>
 
@@ -154,8 +153,10 @@ luaopen_iface(app_t *app)
 {
 	lua_State *L = app->L;
 
+	lua_newtable(L);
 	lua_pushlightuserdata(L, app);
-	luaL_openlib(L, "IFACE", liface, 1);
+	luaL_setfuncs(L, liface, 1);
+	lua_setglobal(L, "IFACE");
 
-	return 1;
+	return 0;
 }
