@@ -49,17 +49,15 @@ app.controller('mainController', function($scope, $http) {
 	}
 
 	$scope.keepalive = function() {
-		$http.post('/api/v1/keepalive', {})
+		$http.post('/api/v1/keepalive', {}, {timeout:3.6e6}) // 1 hour
 			.success(function(data) {
 				$scope.connected = true;
 				success(data);
-			})
-			.error(function() {
-				$scope.connected = false;
-				error();
-			})
-			.finally(function() {
 				$scope.keepalive();
+			})
+			.error(function(data) {
+				$scope.connected = false;
+				error(data);
 			});
 	}
 
