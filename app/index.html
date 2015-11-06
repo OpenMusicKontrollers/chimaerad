@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html ng-app="chimaeraD">
 
 	<head>
 		<title>ChimaeraD</title>
@@ -7,8 +7,8 @@
 		<meta charset="UTF-8" />
 		<link rel="icon" type="image/png" href="/img/favicon.png" />
 		<link rel="stylesheet" type="text/css" href="/style.css" />
-		<script type="text/javascript" src="/jquery-1.11.2.min.js" charset="utf-8"></script>
-		<script type="text/javascript" src="/ace/ace.js" charset="utf-8"></script>
+		<script type="text/javascript" src="/angular.js" charset="utf-8"></script>
+		<script type="text/javascript" src="/angular-route.js" charset="utf-8"></script>
 		<script type="text/javascript" src="/chimaerad.js" charset="utf-8"></script>
 	</head>
 
@@ -20,139 +20,21 @@
 
 		<div>
 			<noscript>
-				<p><b>ChimaeraD needs JavaScript to run, please enable it in your browser or add an exception rule for this site.</b></p>
+				<b>ChimaeraD needs JavaScript to run, please enable it in your browser
+					or add an exception rule for this site.</b>
 			</noscript>
 		</div>
-	
-		<div><p>
-			<table>
-				<tr><td><b>Version</b></td><td>:</td><td>0.1.0</td></tr>
-				<tr><td><b>Status</b></td><td>:</td><td id="daemon_status"></td></tr>
-			</table>
-		</p></div>
 
-		<div><p>
-			<a class="header" id="menu_discovery" href="#">DISCOVERY</a>
-			<a class="header" id="menu_configuration" href="#">CONFIGURATION</a>
-			<a class="header" id="menu_communication" href="#">COMMUNICATION</a>
-			<a class="header" id="menu_event_handling" href="#">EVENT HANDLING</a>
-		</p></div>
-
-		<div id="discovery"><p>
-			<h2>DISCOVERY</h2>
-
-			<table>
-				<tr class="lists" hidden><td><b>Interfaces</b></td><td>:</td><td id="ifaces_list"></td></tr>
-				<tr class="lists" hidden><td><b>Devices</b></td><td>:</td><td id="devices_list"></td></tr>
-
-				<tr class="devices" hidden><td><b></b></td><td>:</td><td></td></tr>
-
-				<tr class="devices" hidden><td><b>Name</b></td><td>:</td>
-					<td><input id="devices_name" type="text" value=""></td>
-				</tr>
-				<tr class="devices" hidden><td><b>Port</b></td><td>:</td><td id="devices_port"></td></tr>
-
-				<tr class="devices" hidden><td><b>Reset mode</b></td><td>:</td><td id="devices_txt_reset"></td></tr>
-				<tr class="devices" hidden><td><b>IP claim</b></td><td>:</td><td>
-					<input name="devices_txt_claim" id="devices_txt_claim_ipv4ll" type="radio" value="ipv4ll">IPv4LL</input>
-					<input name="devices_txt_claim" id="devices_txt_claim_dhcp" type="radio" value="dhcp">DHCP</input>
-					<input name="devices_txt_claim" id="devices_txt_claim_static" type="radio" value="static">Static</input>
-				</td></tr>
-				
-				<tr class="devices" hidden><td><b>IP address</b></td><td>:</td>
-					<td><input id="devices_address" type="text" value=""></td>
-				</tr>
-				<tr class="devices" hidden><td><b>IP reachable</b></td><td>:</td><td id="devices_reachable"></td></tr>
-
-				<tr class="devices" hidden><td><b></b></td><td>:</td><td></td></tr>
-
-				<tr class="devices" hidden><td><b>State</b></td><td>:</td><td>
-					<input id="devices_enabled" type="checkbox" value="enabled">active</input>
-				</td></tr>
-
-				<!--
-				<tr class="devices" hidden> <td></td> <td>:</td>
-					<td><input id="devices_change" type="button" value="change"></td>
-				</tr>
-				-->
-				
-				<!--
-				<tr class="comms" hidden><td><b></b></td><td>:</td><td></td></tr>
-
-				<tr class="comms" hidden><td><b>Comm Mode</b></td><td>:</td><td>
-					<input name="comms_mode" id="comms_mode_udp" type="radio" value="udp">UDP</input>
-					<input name="comms_mode" id="comms_mode_tcp" type="radio" value="tcp">TCP</input>
-				</td>
-				</tr>
-				-->
-
-			</table>
-		</p></div>
-
-		<div id="configuration" hidden><p>
-			<h2>CONFIGURATION</h2>
-		</p></div>
-
-		<div id="communication" hidden><p>
-			<h2>COMMUNICATION</h2>
-		</p></div>
-
-		<div id="event_handling" hidden><p>
-			<h2>EVENT HANDLING</h2>
-		</p></div>
-
-		<div class="brand"><p>
-			Copyright &#169; 2015 Hanspeter Portner |
-			released by <a href="http://open-music-kontrollers.ch">Open Music Kontrollers</a> |
-			under 
-				<a href="http://www.perlfoundation.org/artistic_license_2_0">Artistic License 2.0</a>
-				&amp;
-				<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a> |
-			with <a href="">Libre</a> <a href="#" data-jslicense="1">JavaScript</a>
-		</div>
+		<div ng-view></div>
 
 		<div class="logo"><p>
 			<img src="/img/logo.png" width="70" alt="OMK Logo" />
 		</div>
 
-		<div hidden>
-			<table id="jslicense-labels1">
-				<tr>
-					<th>Script</th>
-					<th>License</th>
-					<th>Source</th>
-				</tr>
-				<tr>
-					<td><a href="/jquery-1.11.2.min.js">jquery-1.11.2.min.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:d3d9a9a6595521f9666a5e94cc830dab83b65699&dn=expat.txt">Expat</a></td>
-					<td><a href="http://code.jquery.com/jquery-1.11.2.js">jquery-1.11.2.js</a></td>
-				</tr>
-				<tr>
-					<td><a href="/ace/ace.js">ace.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:c80d50af7d3db9be66a4d0a86db0286e4fd33292&dn=bsd-3-clause.txt">BSD 3-Clause</a></td>
-					<td><a href="/ace/ace.js">ace.js</a></td>
-				</tr>
-				<tr>
-					<td><a href="/ace/mode-lua.js">mode-lua.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:c80d50af7d3db9be66a4d0a86db0286e4fd33292&dn=bsd-3-clause.txt">BSD 3-Clause</a></td>
-					<td><a href="/ace/mode-lua.js">mode-lua.js</a></td>
-				</tr>
-				<tr>
-					<td><a href="/ace/worker-lua.js">worker-lua.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:c80d50af7d3db9be66a4d0a86db0286e4fd33292&dn=bsd-3-clause.txt">BSD 3-Clause</a></td>
-					<td><a href="/ace/worker-lua.js">worker-lua.js</a></td>
-				</tr>
-				<tr>
-					<td><a href="/ace/theme-clouds_midnight.js">theme-clouds_midnight.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:c80d50af7d3db9be66a4d0a86db0286e4fd33292&dn=bsd-3-clause.txt">BSD 3-Clause</a></td>
-					<td><a href="/ace/theme-clouds_midnight.js">theme-clouds_midnight.js</a></td>
-				</tr>
-				<tr>
-					<td><a href="/chimaerad.js">chimaerad.js</a></td>
-					<td><a href="magnet:?xt=urn:btih:54fd2283f9dbdf29466d2df1a98bf8f65cafe314&dn=artistic-2.0.txt">Artistic 2.0</a></td>
-					<td><a href="/chimaerad.js">chimaerad.js</a></td>
-				</tr>
-		</table>
+		<div class="brand"><p>
+			Copyright &#169; 2015 Hanspeter Portner |
+			released by <a href="http://open-music-kontrollers.ch">Open Music Kontrollers</a> |
+			under <a href="http://www.perlfoundation.org/artistic_license_2_0">Artistic License 2.0</a>
 		</div>
 
 	</body>

@@ -122,13 +122,6 @@ _deinit(app_t *app)
 #if defined(SIGQUIT)
 	uv_signal_stop(&app->sigquit);
 #endif
-
-#if defined(USE_JACK)
-	if(uv_is_active((uv_handle_t *)&app->asio))
-		uv_close((uv_handle_t *)&app->asio, NULL);
-	if(uv_is_active((uv_handle_t *)&app->syncer))
-		uv_timer_stop(&app->syncer);
-#endif
 }
 
 static void
@@ -161,140 +154,6 @@ _zip_loader(lua_State *L)
 	return 0;
 }
 
-#if defined(USE_JACK)
-#	define JAN_1970 (uint32_t)0x83aa7e80
-#	include <osc.h>
-
-static void
-_asio(uv_async_t *handle)
-{
-	static char str [1024];
-	app_t *app = handle->data;
-	jack_ringbuffer_t *rb = app->rb_msg;
-
-	while(jack_ringbuffer_read_space(rb) >= sizeof(size_t))
-	{
-		size_t size;
-		if(jack_ringbuffer_peek(rb, (char *)&size, sizeof(size_t)) ==
-			sizeof(size_t))
-		{
-			if(jack_ringbuffer_read_space(rb) >= sizeof(size_t) + size)
-			{
-				jack_ringbuffer_read_advance(rb, sizeof(size_t));
-				if(jack_ringbuffer_read(rb, str, size) == size)
-				{
-					str[size] = '\0';
-					fprintf(stderr, "%s", str);
-				}
-			}
-		}
-	}
-	//TODO handle fails
-}
-
-void rt_printf(app_t *app, const char *fmt, ...)
-{
-	static char str [1024];
-	jack_ringbuffer_t *rb = app->rb_msg;
-	va_list list;
-
-	va_start(list, fmt);
-	vsprintf(str, fmt, list);
-	va_end(list);
-
-	size_t size = strlen(str);
-
-	if(jack_ringbuffer_write_space(rb) >= sizeof(size_t) + size)
-	{
-		if(jack_ringbuffer_write(rb, (const char *)&size, sizeof(size_t)) ==
-			sizeof(size_t))
-		{
-			if(jack_ringbuffer_write(rb, str, size) == size)
-				;
-		}
-	}
-	//TODO handle fails
-
-	uv_async_send(&app->asio);
-}
-
-static void
-_jack_ntp_sync(uv_timer_t *handle)
-{
-	app_t *app = handle->data;
-
-	app->t0 = app->t1;
-
-	app->t1 = jack_get_time() / 2;
-	clock_gettime(CLOCK_REALTIME, &app->ntp);
-	app->t1 += jack_get_time() / 2;
-	
-	app->ntp.tv_sec += JAN_1970;
-	app->t1 += 500000; // ideal period of syncer
-
-	app->T = (app->t1 - app->t0) / 0.5; // estimated us/s
-}
-
-jack_nframes_t
-jack_ntp_desync(app_t *app, osc_time_t tstamp)
-{
-	if(tstamp == OSC_IMMEDIATE)
-		return 0; // inject at beginning of next period
-
-	static osc_time_t last_tstamp;
-	static jack_nframes_t last_frame;
-
-	if(tstamp == last_tstamp)
-		return last_frame;
-
-	uint32_t tstamp_sec = tstamp >> 32;
-	uint32_t tstamp_frac = tstamp & 0xffffffff;
-
-	double diff = tstamp_sec;
-	diff -= app->ntp.tv_sec;
-	diff += tstamp_frac * SLICE;
-	diff -= app->ntp.tv_nsec * 1e-9;
-
-	jack_time_t t = app->t0 + diff * app->T;
-	jack_nframes_t frame = jack_time_to_frames(app->client, t);
-
-	last_tstamp = tstamp;
-	last_frame = frame;
-
-	return frame;
-}
-
-static int
-_process(jack_nframes_t nframes, void *data)
-{
-	app_t *app = data;
-	jack_ringbuffer_t *rb = app->rb;
-
-	// append or remove slaves
-	while(jack_ringbuffer_read_space(rb) >= sizeof(job_t))
-	{
-		job_t job;
-		if(jack_ringbuffer_read(rb, (char *)&job, sizeof(job_t)) == sizeof(job_t))
-		{
-			if(job.add)
-				app->slaves = inlist_append(app->slaves, INLIST_GET(job.slave));
-			else // !job.add
-				app->slaves = inlist_remove(app->slaves, INLIST_GET(job.slave));
-		}
-	}
-
-	// loop over registered slaves
-	slave_t *slave;
-	INLIST_FOREACH(app->slaves, slave)
-	{
-		if(!slave->is_dead)
-			slave->process(nframes, slave->data);
-	}
-
-	return 0;
-}
-#endif
-
 int
 main(int argc, char **argv)
 {
@@ -314,50 +173,15 @@ main(int argc, char **argv)
 	// use default uv_loop
 	app.loop = uv_default_loop();
 
-#if defined(USE_JACK)
-	const char *id = "ChimaeraD"; //FIXME add NSM support
-	const char *server_name = NULL; //FIXME read from command line
-	jack_options_t options = server_name ? JackNullOption | JackServerName : JackNullOption;
-	jack_status_t status;
-	if(!(app.client = jack_client_open(id, options, &status, server_name)))
-		fprintf(stderr, "[main] [jack] could not open client\n");
-	if(jack_set_process_callback(app.client, _process, &app))
-		fprintf(stderr, "[main] [jack] could not set process callback\n");
-	if(!(app.rb = jack_ringbuffer_create(256)))
-		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
-	if(!(app.rb_msg = jack_ringbuffer_create(1024)))
-		fprintf(stderr, "[main] [jack] could not create ringbuffer\n");
-
-	app.asio.data = &app;
-	if((err = uv_async_init(app.loop, &app.asio, _asio)))
-		fprintf(stderr, "[main] [uv_async_init}: %s\n", uv_err_name(err));
-
-	app.syncer.data = &app;
-	if((err = uv_timer_init(app.loop, &app.syncer)))
-		fprintf(stderr, "[main] [uv_timer_init]: %s\n", uv_err_name(err));
-	if((err = uv_timer_start(&app.syncer, _jack_ntp_sync, 0, 500))) // ms
-		fprintf(stderr, "[main] [uv_timer_start]: %s\n", uv_err_name(err));
-#endif
-
-#if defined(USE_LUAJIT)
-	app.L = luaL_newstate(); // use LuaJIT internal memory allocator
-#else // Lua 5.1 or 5.2
 	app.L = lua_newstate(_lua_alloc, &app); // use TLSF memory allocator
-#endif
 
 	luaL_openlibs(app.L);
 	luaopen_json(&app);
 	luaopen_osc(&app);
 	luaopen_http(&app);
 	luaopen_zip(&app);
-	luaopen_rtmidi(&app);
 	luaopen_iface(&app);
 	luaopen_dns_sd(&app);
-#if defined(USE_JACK)
-	luaopen_jack_midi(&app);
-	luaopen_jack_osc(&app);
-	luaopen_jack_cv(&app);
-#endif
 	lua_pop(app.L, 7);
 	lua_gc(app.L, LUA_GCSTOP, 0); // switch to manual garbage collection
 
@@ -388,10 +212,6 @@ main(int argc, char **argv)
 		fprintf(stderr, "main: %s\n", lua_tostring(app.L, -1));
 		lua_pop(app.L, 1);
 	}
-#if defined(USE_JACK)
-	if(jack_activate(app.client))
-		fprintf(stderr, "[main] [jack] could not activate jack client\n");
-#endif
 	
 	app.sigint.data = &app;
 	if((err = uv_signal_init(app.loop, &app.sigint)))
@@ -415,18 +235,6 @@ main(int argc, char **argv)
 
 	_thread_rtprio(60); //TODO make this configurable
 	uv_run(app.loop, UV_RUN_DEFAULT);
-
-#if defined(USE_JACK)
-	if(app.rb)
-		jack_ringbuffer_free(app.rb);
-	if(app.rb_msg)
-		jack_ringbuffer_free(app.rb_msg);
-
-	if(app.client) {
-		jack_deactivate(app.client);
-		jack_client_close(app.client);
-	}
-#endif
 
 	if(app.io)
 		zip_close(app.io);

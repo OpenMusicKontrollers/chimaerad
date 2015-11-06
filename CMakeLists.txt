@@ -14,8 +14,6 @@ include_directories(${PROJECT_SOURCE_DIR}/libosc)
 include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
-include_directories(${PROJECT_SOURCE_DIR}/jackey)
-include_directories(${PROJECT_SOURCE_DIR}/jack_osc)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
@@ -41,74 +39,10 @@ pkg_search_module(UV REQUIRED libuv>=1.0.0)
 include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
-# JACK
-option(USE_JACK "use JACK" OFF)
-if(USE_JACK)
-	add_library(mod_jack STATIC
-		mod_jack_midi.c
-		mod_jack_cv.c
-		mod_jack_osc.c)
-	target_compile_definitions(mod_jack PUBLIC -DUSE_JACK)
-
-	# check for metadata support
-	CHECK_INCLUDE_FILES("jack/metadata.h" JACK_HAS_METADATA_API)
-	if(JACK_HAS_METADATA_API)
-		target_compile_definitions(mod_jack PUBLIC -DJACK_HAS_METADATA_API)
-	endif()
-endif()
-
-# RtMidi
-option(USE_SYSTEM_RTMIDI "use System RtMidi" OFF)
-if(USE_SYSTEM_RTMIDI)
-	pkg_search_module(RTMIDI REQUIRED librtmidi>=2.1)
-	include_directories(${RTMIDI_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${RTMIDI_LDFLAGS})
-else() # use embedded rtmidi
-	add_library(rtmidi STATIC rtmidi/RtMidi.cpp)
-	include_directories(${PROJECT_SOURCE_DIR}/rtmidi)
-
-	if(WIN32)
-		target_compile_definitions(rtmidi PUBLIC -D__WINDOWS_MM__)
-	endif()
-
-	if(${USE_JACK} AND UNIX) # for Apple and Linux
-		pkg_search_module(JACK OPTIONAL jack)
-		if(${JACK_FOUND})
-			include_directories(${JACK_INCLUDE_DIRS})
-			set(LIBS ${LIBS} ${JACK_LDFLAGS})
-			target_compile_definitions(rtmidi PUBLIC -D__UNIX_JACK__)
-		endif()
-	endif()
-
-	if(APPLE)
-		find_library(CORE_MIDI CoreMIDI)
-		find_library(CORE_FOUNDATION CoreFoundation)
-		find_library(CORE_AUDIO CoreAudio)
-		set(LIBS ${LIBS} ${CORE_MIDI} ${CORE_FOUNDATION} ${CORE_AUDIO})
-		target_compile_definitions(rtmidi PUBLIC -D__MACOSX_CORE__)
-	endif()
-
-	if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-		pkg_search_module(ALSA OPTIONAL alsa)
-		if(${ALSA_FOUND})
-			include_directories(${ALSA_INCLUDE_DIRS})
-			set(LIBS ${LIBS} ${ALSA_LDFLAGS})
-			target_compile_definitions(rtmidi PUBLIC -D__LINUX_ALSA__)
-		endif()
-	endif()
-endif()
-
 # lua
-option(USE_LUAJIT "use LuaJIT" OFF)
-if(USE_LUAJIT)
-	pkg_search_module(LUAJIT REQUIRED luajit>=2.0)
-	include_directories(${LUAJIT_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${LUAJIT_LDFLAGS})
-else()
-	pkg_search_module(LUA REQUIRED lua>=5.1 lua5.2 lua5.1)
-	include_directories(${LUA_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${LUA_LDFLAGS})
-endif()
+pkg_search_module(LUA REQUIRED lua>=5.1 lua5.3 lua5.2 lua5.1)
+include_directories(${LUA_INCLUDE_DIRS})
+set(LIBS ${LIBS} ${LUA_LDFLAGS})
 
 if(WIN32)
 	find_library(DNS_SD dns_sd)
@@ -138,8 +72,6 @@ add_executable(chimaerad
 	mod_json.c
 # chimaerad
 	chimaerad.c
-# rtmidi
-	mod_rtmidi.cpp
 # http
 	http-parser/http_parser.c
 	mod_http.c
@@ -151,17 +83,7 @@ add_executable(chimaerad
 	mod_dns_sd.c
 # tlsf
 	tlsf-3.0/tlsf.c)
-if(NOT USE_SYSTEM_RTMIDI)
-	target_link_libraries(chimaerad rtmidi)
-endif()
-if(USE_JACK)
-	target_compile_definitions(chimaerad PUBLIC -DUSE_JACK)
-	target_link_libraries(chimaerad mod_jack)
-endif()
 target_link_libraries(chimaerad ${LIBS})
-if(USE_LUAJIT)
-	target_compile_definitions(chimaerad PUBLIC -DUSE_LUAJIT)
-endif()
 target_compile_definitions(chimaerad PUBLIC -DAPP_DIR=${APP_DIR})
 install(TARGETS chimaerad DESTINATION bin)
 
@@ -174,10 +96,13 @@ endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
 	index.html
+	main.html
+	device.html
 	style.css
 
 	chimaerad.js
-	jquery-1.11.2.min.js
+	angular.js
+	angular-route.js
 
 	main.lua
 	class.lua
@@ -185,11 +110,6 @@ set(ZIP_SOURCES
 	rest_responder.lua
 	httpd.lua
 	dns_sd.lua
-	midi_out.lua
-	cv_out.lua
-	osc_out.lua
-	tuio2_fltr.lua
-	map.lua
 	
 	font/Berenika-Bold.ttf
 	font/Berenika-Bold.woff
@@ -197,12 +117,7 @@ set(ZIP_SOURCES
 	font/Abel.woff2
 
 	img/favicon.png
-	img/logo.png
-
-	ace/ace.js
-	ace/mode-lua.js
-	ace/theme-clouds_midnight.js
-	ace/worker-lua.js)
+	img/logo.png)
 
 set(ZIP_DEPENDS "")
 foreach(f ${ZIP_SOURCES})

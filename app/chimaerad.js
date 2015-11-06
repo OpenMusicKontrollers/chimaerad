@@ -15,206 +15,130 @@
  * http://www.perlfoundation.org/artistic_license_2_0.
  */
 
-$.postJSON = function(data) {
-	var dup = data;
+var app = angular.module('chimaeraD', ['ngRoute']);
 
-	if(typeof(dup.data) == 'object')
-		dup.data = JSON.stringify(dup.data);
-	else if(typeof(dup.data) == 'string')
-		dup.data = dup.data;
-	else
-		return;
+app.config(function($routeProvider, $httpProvider) {
+	$routeProvider
+		.otherwise({
+			redirectTo: '/'
+		})
+		.when('/', {
+			templateUrl: 'main.html',
+			controller: 'mainController'
+		})
+		.when('/device/:device/:uri*', {
+			templateUrl: 'device.html',
+			controller: 'deviceController'
+		});
 
-	dup.type = 'POST';
-	dup.dataType = 'json';
+    $httpProvider.defaults.timeout = 5000;
+});
 
-	$.ajax(dup);
-}
+app.controller('mainController', function($scope, $http) {
+	$scope.connected = true;
+	$scope.interfaces = null;
+	$scope.devices = null;
 
-var devices = {}
-var device = undefined;
-var connected = true;
-
-$.postOSC = function(data) {
-	$.postJSON({
-		url: '/?',
-		data: data,
-		error: function(jqXHR, err) {
-			console.log(err);
-		},
-		success: function(data, status) {
-			console.log(JSON.stringify(data));
-		}
-	});
-}
-
-function devices_change(e) {
-	//TODO
-	var name = $('#devices_name').prop('value');
-	var ipv4ll = $('#devices_txt_claim_ipv4ll').prop('checked');
-	var dhcp = $('#devices_txt_claim_dhcp').prop('checked');
-	var static = $('#devices_txt_claim_static').prop('checked');
-	var address = $('#devices_address').prop('value');
-
-	console.log('devices_change', name, ipv4ll, dhcp, static, address);
-
-	$.postOSC({
-		'request': '/devices/change',
-		'data': {
-			'target': device.fullname,
-			'name': name,
-			'ipv4ll': ipv4ll ? 1 : null,
-			'dhcp': dhcp ? 1 : null,
-			'static': static ? 1 : null,
-			'address': address
-		}
-	});
-};
-
-function header_toggle(e) {
-	var id = $(this).attr('id');
-	
-	$('#discovery').hide();
-	$('#configuration').hide();
-	$('#communication').hide();
-	$('#event_handling').hide();
-
-	if(id == 'menu_discovery')
-		$('#discovery').show();
-	else if(id == 'menu_configuration')
-		$('#configuration').show();
-	else if(id == 'menu_communication')
-		$('#communication').show();
-	else if(id == 'menu_event_handling')
-		$('#event_handling').show();
-};
-
-function devices_toggle(e) {
-	var key = $(this).attr('id');
-	device = devices[key];
-
-	if(!device)
-		return;
-
-	$('#devices_name').prop('value', device.name);
-	$('#devices_port').html(device.port);
-
-	$('#devices_txt_reset').html(device.txt.reset);
-	$('#devices_txt_claim_ipv4ll').prop('checked', device.txt.ipv4ll && !device.txt.dhcp)
-	$('#devices_txt_claim_dhcp').prop('checked', device.txt.dhcp);
-	$('#devices_txt_claim_static').prop('checked', device.txt.static);
-	$('#devices_address').prop('value', device.address);
-	$('#devices_address').prop('disabled', !device.txt.static);
-	$('#devices_reachable').html(device.reachable ? 'yes' : 'no (you need to reconfigure the device IP)');
-	$('#devices_change').off('click').on('click', devices_change);
-	
-	$('.devices').show();
-	
-	$('#comms_mode_udp').prop('checked', device.mode == 'osc.udp');
-	$('#comms_mode_tcp').prop('checked', device.mode == 'osc.tcp');
-
-	if(device.reachable)
-		$('.comms').show();
-	else
-		$('.comms').hide();
-	
-	postAPI('/api/v1/handles', {'target':key, 'state':true});
-}
-
-function api_v1_keepalive() {
-	if(!connected) {
-		$('#daemon_status').html('disconnected (<i>check whether the "chimaerad" daemon is up and running and then refresh this page)</i>.');
-
-		$('.lists').hide();
-		devices = {};
-		$('.devices').hide();
-		$('.comms').hide();
-		return;
-	} else {
-		$('#daemon_status').html('connected');
-		$('.lists').show();
+	var success = function(data) {
+		console.log(data);
+		$scope[data.key] = data.value;
 	}
 
-	$.postJSON({
-		url:'/api/v1/keepalive',
-		data:null,
-		timeout:60000,
-		error:function(jqXHR, status) {
-			if(status == 'error')
-				connected = false;
-		},
-		success:function(reply, status) {
-			if(status != 'success' || reply.status != 'success') {
-				console.log('api_v1_keepalive' + reply.message);
-				return;
-			}
-			getAPI(reply.data.href);
-		},
-		complete:api_v1_keepalive
-	});
-};
-
-function api_v1_interfaces(reply, status) {
-	if(status != 'success' || reply.status != 'success') {
-		console.log('api_v1_interfaces' + reply.message);
-		return;
+	var error = function(data) {
+		console.log('error');
 	}
 
-	var itm = [];
-	$.each(reply.data, function(i, conf) {
-		if(!conf.internal && (conf.version == 'inet'))
-			itm.push(conf.name + ' (' + conf.address + ')');
-	});
-	$('#ifaces_list').html(itm.join(', '));
-}
-
-function api_v1_devices(reply, status) {
-	if(status != 'success' || reply.status != 'success') {
-		console.log('api_v1_devices' + reply.message);
-		return;
+	$scope.keepalive = function() {
+		$http.post('/api/v1/keepalive', {})
+			.success(function(data) {
+				$scope.connected = true;
+				success(data);
+			})
+			.error(function() {
+				$scope.connected = false;
+				error();
+			})
+			.finally(function() {
+				$scope.keepalive();
+			});
 	}
 
-	var itm = [];
-	$.each(reply.data, function(key, conf) {
-		devices[key] = conf;
-		itm.push('<a href="#" id="' + key + '">' + key + '</a>');
-	});
-	$('#devices_list').html(itm.join(', '));
-	$.each(reply.data, function(key, conf) {
-		$('a[id="'+key+'"]').click(devices_toggle);
-	});
-	$('.devices').hide();
-	$('.comms').hide();
-}
-
-function api_v1_handles(reply, status) {
-	if(status != 'success' || reply.status != 'success') {
-		console.log('api_v1_handles' + reply.message);
-		return;
+	$scope.api = function(path) {
+		$http.post(path, {})
+			.success(success)
+			.error(error);
 	}
+});
 
-	//TODO
-}
+app.controller('deviceController', function($scope, $http, $route) {
+	var device = $route.current.params.device;
+	var path = $route.current.params.uri;
+	$scope.uri = path;
 
-var api_v1_get = {
-	'/api/v1/interfaces': api_v1_interfaces,
-	'/api/v1/devices': api_v1_devices,
-	'/api/v1/handles': api_v1_handles
-};
+	$scope.devices = null;
+	$scope.device = null;
+	$scope.url = null;
+	$scope.items = {};
+	$scope.contents = null;
 
-function postAPI(url, data) {
-	$.postJSON({url:url, data:data, success:api_v1_get[url]});
-};
-
-function getAPI(url) {
-	$.getJSON(url, null, api_v1_get[url]);
-};
-
-$(document).ready(function() {
-	api_v1_keepalive();
-
-	getAPI('/api/v1/interfaces');
-	getAPI('/api/v1/devices');
+	var success = function(data) {
+		console.log(data);
+		$scope[data.key] = data.value;
+		$scope.device = $scope.devices[device];
+		$scope.url = $scope.device.fullname.replace(/([^.]+)._osc._([^.]+).local/g,
+			'osc.$2' + ($scope.device.version == 'inet' ? '4' : '6') + '://$1.local:' + $scope.device.port);
 	
-	$('a.header').off('click').on('click', header_toggle);
+		$http.post('/api/v1/query', {url: $scope.url, path: $scope.uri})
+			.success(function(data) {
+				$scope[data.key] = data.value;
+			}); //TODO .error
+	}
+
+	var error = function(data) {
+		console.log($scope.uri);
+	}
+
+	$scope.api = function(path) {
+		$http.post(path, {})
+			.success(success)
+			.error(error);
+	}
+
+	$scope.query = function(item) {
+		$http.post('/api/v1/query', {url: $scope.url, path: path+item})
+			.success(function(data) {
+				$scope.items[item] = data.value;
+			}); //TODO .error
+	}
+
+	$scope.get = function(item) {
+		var arg = $scope.items[item].arguments[0];
+
+		$http.post('/api/v1/get', {url: $scope.url, path: path+item})
+			.success(function(data) {
+				var value = data.value;
+				if(arg.type == 'i' && arg.range && arg.range[0] == 0 && arg.range[1] == 1) {
+					value = value === 1 ? true : false;
+				}
+				$scope.items[item].arguments[0].value = value;
+			}); //TODO .error
+	}
+
+	$scope.set = function(item) {
+		var arg = $scope.items[item].arguments[0];
+
+		$http.post('/api/v1/set', {
+			url: $scope.url,
+			path: path+item,
+			format: arg.type,
+			value: arg.value
+		}).success(function(data) {
+			}); //TODO .error
+	}
+
+	$scope.call = function(item) {
+		$http.post('/api/v1/call', {url: $scope.url, path: path+item})
+			.success(function(data) {
+			}); //TODO .error
+	}
 });

@@ -42,16 +42,16 @@ _list(lua_State *L)
 
 		lua_createtable(L, 0, 6);
 		{
-			lua_pushstring(L, ifaces[1].name);
+			lua_pushstring(L, iface->name);
 			lua_setfield(L, -2, "name");
 
 			lua_pushboolean(L, iface->is_internal);
 			lua_setfield(L, -2, "internal");
 
 			if(iface->address.address4.sin_family == AF_INET)
-				err = uv_inet_ntop(AF_INET, &ifaces[i].address.address4.sin_addr.s_addr, buffer, sizeof(buffer));
+				err = uv_inet_ntop(AF_INET, &iface->address.address4.sin_addr.s_addr, buffer, sizeof(buffer));
 			else
-				err = uv_inet_ntop(AF_INET6, &ifaces[i].address.address6.sin6_addr.s6_addr, buffer, sizeof(buffer));
+				err = uv_inet_ntop(AF_INET6, &iface->address.address6.sin6_addr.s6_addr, buffer, sizeof(buffer));
 			if(!err)
 			{
 				lua_pushstring(L, buffer);
@@ -65,9 +65,9 @@ _list(lua_State *L)
 			lua_setfield(L, -2, "version");
 
 			if(iface->netmask.netmask4.sin_family == AF_INET)
-				err = uv_inet_ntop(AF_INET, &ifaces[i].netmask.netmask4.sin_addr.s_addr, buffer, sizeof(buffer));
+				err = uv_inet_ntop(AF_INET, &iface->netmask.netmask4.sin_addr.s_addr, buffer, sizeof(buffer));
 			else
-				err = uv_inet_ntop(AF_INET6, &ifaces[i].netmask.netmask6.sin6_addr.s6_addr, buffer, sizeof(buffer));
+				err = uv_inet_ntop(AF_INET6, &iface->netmask.netmask6.sin6_addr.s6_addr, buffer, sizeof(buffer));
 			if(!err)
 			{
 				lua_pushstring(L, buffer);

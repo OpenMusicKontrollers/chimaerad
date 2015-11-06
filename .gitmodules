@@ -1,21 +1,9 @@
 [submodule "http-parser"]
 	path = http-parser
 	url = https://github.com/joyent/http-parser.git
-[submodule "ace-builds"]
-	path = ace-builds
-	url = https://github.com/ajaxorg/ace-builds.git
 [submodule "libosc"]
 	path = libosc
 	url = https://github.com/OpenMusicKontrollers/libosc.git
 [submodule "libosc_stream"]
 	path = libosc_stream
 	url = https://github.com/OpenMusicKontrollers/libosc_stream.git
-[submodule "rtmidi"]
-	path = rtmidi
-	url = https://github.com/thestk/rtmidi.git
-[submodule "jackey"]
-	path = jackey
-	url = https://github.com/drobilla/jackey.git
-[submodule "jack_osc"]
-	path = jack_osc
-	url = https://github.com/ventosus/jack_osc.git
