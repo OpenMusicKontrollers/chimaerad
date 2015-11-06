@@ -26,7 +26,12 @@ local function next_job(self)
 	if not self._connected then return end
 
 	for path, job in pairs(self._jobs) do
-		if job.format and job.value then
+		if job.format then
+			if job.value == true then
+				job.value = 1
+			elseif job.value == false then
+				job.value = 0
+			end
 			self._io(1, path, 'i' .. job.format, 13, job.value)
 		else
 			self._io(1, path, 'i', 13)
@@ -53,8 +58,18 @@ local methods = {
 		
 		next_job(self)
 	end,
+
 	error = function(self, time, uid, target, err)
 		--TODO
+	end,
+
+	dump = function(self, time, fid, blob)
+		self.sensors = self.sensors or {}
+		for i=1, #blob, 2 do
+			local idx = (i+1)/2
+			local val = (blob[i-1] << 8) | blob[i]
+			self.sensors[idx] = val > 0x800 and -(0xffff - val) or val
+		end
 	end,
 
 	stream = {
@@ -108,7 +123,9 @@ local app = class:new({
 							_jobs = {},
 							_connected = false
 						}
-						dev._io = OSC.new(j.url, osc_responder:new(dev))
+						local responder = osc_responder:new(dev)
+						dev._io = OSC.new(j.url, responder)
+						dev._srv = OSC.new('osc.udp4://:3333', responder)
 						clients[j.url] = dev
 					end
 
@@ -136,6 +153,8 @@ local app = class:new({
 					local err, j = JSON.decode(data.body)
 					local dev = clients[j.url]
 
+					print('set', j.path, j.format, j.value)
+
 					dev._jobs[j.path] = {
 						httpd = httpd,
 						client = client,
@@ -148,7 +167,7 @@ local app = class:new({
 
 				call = function(httpd, client, data)
 					local err, j = JSON.decode(data.body)
-					local dev = client[j.url]
+					local dev = clients[j.url]
 
 					dev._jobs[j.path] = {
 						httpd = httpd,
@@ -156,6 +175,13 @@ local app = class:new({
 					}
 
 					next_job(dev)
+				end,
+
+				sensors = function(httpd, client, data)
+					local err, j = JSON.decode(data.body)
+					local dev = clients[j.url]
+
+					self.httpd:unicast_json(client, {status='success', key='sensors', value=dev and dev.sensors or {}})
 				end
 			} } }
 		})

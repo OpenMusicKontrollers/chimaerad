@@ -29,6 +29,10 @@ app.config(function($routeProvider, $httpProvider) {
 		.when('/device/:device/:uri*', {
 			templateUrl: 'device.html',
 			controller: 'deviceController'
+		})
+		.when('/calibration/:device', {
+			templateUrl: 'calibration.html',
+			controller: 'calibrationController'
 		});
 
     $httpProvider.defaults.timeout = 5000;
@@ -65,6 +69,57 @@ app.controller('mainController', function($scope, $http) {
 		$http.post(path, {})
 			.success(success)
 			.error(error);
+	}
+});
+
+app.controller('calibrationController', function($scope, $route, $timeout, $http) {
+	var device = $route.current.params.device;
+
+	var s = [];
+	for(var i=0; i<160; i++) {
+		s[i] = Math.random();
+	}
+	$scope.sensors = s;
+
+	$scope.onTimeout = function() {
+		$http.post('/api/v1/sensors', {url: 'osc.udp4://chimaera.local:4444'})
+			.success(function(data) {
+				$scope[data.key] = data.value;
+			});
+
+		mytimeout = $timeout($scope.onTimeout, 40);
+	}
+	var mytimeout = $timeout($scope.onTimeout, 40);
+});
+
+app.directive("sensorDump", function () {
+	return {
+		restrict: 'E',
+		scope: {
+			sensors: '='
+		},
+		template: "<canvas width='1280' height='320' />",
+		link: function(scope, element, attrs) {
+			console.log(element);
+			scope.canvas = element.find('canvas')[0];
+			scope.context = scope.canvas.getContext('2d');
+
+			scope.$watch('sensors', function(newValue) {
+				scope.context.fillStyle = '#222';
+				scope.context.fillRect(0, 0, scope.canvas.width, scope.canvas.height);
+				scope.context.fillStyle = '#b00';
+				var barWidth = scope.canvas.width / newValue.length;
+				var m = scope.canvas.height / 2;
+				for(var i=0; i<newValue.length; i++) {
+					var rel = newValue[i] / 4096 * scope.canvas.height;
+					if(rel > 0) {
+						scope.context.fillRect(barWidth*i+1, m, barWidth-2, rel);
+					} else if(rel < 0) {
+						scope.context.fillRect(barWidth*i+1, m+rel, barWidth-2, -rel);
+					}
+				}
+			});
+		}
 	}
 });
 

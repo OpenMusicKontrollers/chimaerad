@@ -94,6 +94,8 @@ set(ZIP_SOURCES
 	index.html
 	main.html
 	device.html
+	calibration.html
+
 	style.css
 
 	chimaerad.js
