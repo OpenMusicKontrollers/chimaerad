@@ -35,7 +35,7 @@ elseif(APPLE)
 endif()
 
 # libzip
-pkg_search_module(ZIP REQUIRED libzip>=1.0.0)
+pkg_search_module(ZIP REQUIRED libzip>=0.11.0)
 include_directories(${ZIP_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${ZIP_LDFLAGS})
 
