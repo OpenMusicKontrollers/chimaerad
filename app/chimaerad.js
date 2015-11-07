@@ -105,17 +105,54 @@ app.directive("sensorDump", function () {
 			scope.context = scope.canvas.getContext('2d');
 
 			scope.$watch('sensors', function(newValue) {
+				var barWidth = scope.canvas.width / newValue.length;
+				var barWidth2 = barWidth - 2;
+				var m = scope.canvas.height / 2;
+				var thresh = 4096 / scope.canvas.height;
+
+				// fill background
 				scope.context.fillStyle = '#222';
 				scope.context.fillRect(0, 0, scope.canvas.width, scope.canvas.height);
-				scope.context.fillStyle = '#b00';
-				var barWidth = scope.canvas.width / newValue.length;
-				var m = scope.canvas.height / 2;
+
+				// set line parameters
+				scope.context.strokeStyle = '#fff';
+				scope.context.lineWidth = 1;
+				scope.context.setLineDash([]);
+
+				// draw solid lines
+				scope.context.strokeRect(0, 0, scope.canvas.width, scope.canvas.height);
+				scope.context.beginPath();
+					scope.context.moveTo(0, m);
+					scope.context.lineTo(scope.canvas.width, m);
+				scope.context.stroke();
+				scope.context.closePath();
+
+				// draw dashed lines
+				scope.context.setLineDash([1, 4]);
+				scope.context.beginPath();
+					scope.context.moveTo(0, 10);
+					scope.context.lineTo(scope.canvas.width, 10);
+				scope.context.stroke();
+				scope.context.closePath();
+
+				scope.context.beginPath();
+					scope.context.moveTo(0, 310);
+					scope.context.lineTo(scope.canvas.width, 310);
+				scope.context.stroke();
+				scope.context.closePath();
+
+				// draw sensor bars
 				for(var i=0; i<newValue.length; i++) {
+					if(Math.abs(newValue[i]) < thresh)
+						continue;
+
 					var rel = newValue[i] / 4096 * scope.canvas.height;
 					if(rel > 0) {
-						scope.context.fillRect(barWidth*i+1, m, barWidth-2, rel);
+						scope.context.fillStyle = '#0b0';
+						scope.context.fillRect(barWidth*i + 1, m, barWidth2, rel);
 					} else if(rel < 0) {
-						scope.context.fillRect(barWidth*i+1, m+rel, barWidth-2, -rel);
+						scope.context.fillStyle = '#b00';
+						scope.context.fillRect(barWidth*i + 1, m+rel, barWidth2, -rel);
 					}
 				}
 			});
@@ -140,7 +177,7 @@ app.controller('deviceController', function($scope, $http, $route) {
 		$scope.device = $scope.devices[device];
 		$scope.url = $scope.device.fullname.replace(/([^.]+)._osc._([^.]+).local/g,
 			'osc.$2' + ($scope.device.version == 'inet' ? '4' : '6') + '://$1.local:' + $scope.device.port);
-	
+
 		$http.post('/api/v1/query', {url: $scope.url, path: $scope.uri})
 			.success(function(data) {
 				$scope[data.key] = data.value;

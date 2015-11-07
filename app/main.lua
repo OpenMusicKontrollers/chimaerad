@@ -55,7 +55,7 @@ local methods = {
 			end
 			self._jobs[target] = nil
 		end
-		
+
 		next_job(self)
 	end,
 
@@ -64,11 +64,18 @@ local methods = {
 	end,
 
 	dump = function(self, time, fid, blob)
-		self.sensors = self.sensors or {}
-		for i=1, #blob, 2 do
-			local idx = (i+1)/2
-			local val = (blob[i-1] << 8) | blob[i]
-			self.sensors[idx] = val > 0x800 and -(0xffff - val) or val
+		if self._sensors and #self._sensors > 0 then
+			sensors = {}
+			for i=1, #blob, 2 do
+				local idx = (i+1)/2
+				local val = (blob[i-1] << 8) | blob[i]
+				sensors[idx] = val > 0x800 and -(0xffff - val) or val
+			end
+
+			for _, v in ipairs(self._sensors) do
+				v.httpd:unicast_json(v.client, {status='success', key='sensors', value=sensors})
+			end
+			self._sensors = {}
 		end
 	end,
 
@@ -181,7 +188,15 @@ local app = class:new({
 					local err, j = JSON.decode(data.body)
 					local dev = clients[j.url]
 
-					self.httpd:unicast_json(client, {status='success', key='sensors', value=dev and dev.sensors or {}})
+					if dev then
+						dev._sensors = dev._sensors or {}
+						table.insert(dev._sensors, {
+							httpd = httpd,
+							client = client
+						})
+					else
+						self.httpd:unicast_json(client, {status='success', key='sensors', value={}})
+					end
 				end
 			} } }
 		})
