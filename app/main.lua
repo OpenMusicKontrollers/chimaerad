@@ -20,27 +20,6 @@ local httpd = require('httpd')
 local dns_sd = require('dns_sd')
 local osc_responder = require('osc_responder')
 
-local clients = {}
-
-local function next_job(self)
-	if not self._connected then return end
-
-	for path, job in pairs(self._jobs) do
-		if job.format then
-			if job.value == true then
-				job.value = 1
-			elseif job.value == false then
-				job.value = 0
-			end
-			self._io(1, path, 'i' .. job.format, 13, job.value)
-		else
-			self._io(1, path, 'i', 13)
-		end
-
-		break; -- only handle one job at a time
-	end
-end
-
 local methods = {
 	success = function(self, time, uid, target, data)
 		local job = self._jobs[target]
@@ -56,15 +35,18 @@ local methods = {
 			self._jobs[target] = nil
 		end
 
-		next_job(self)
+		self:next_job()
+
+		return true
 	end,
 
 	error = function(self, time, uid, target, err)
 		--TODO
+		return true
 	end,
 
 	dump = function(self, time, fid, blob)
-		if self._sensors and #self._sensors > 0 then
+		if #self._sensors > 0 then
 			sensors = {}
 			for i=1, #blob, 2 do
 				local idx = (i+1)/2
@@ -77,32 +59,98 @@ local methods = {
 			end
 			self._sensors = {}
 		end
+
+		return true
 	end,
 
 	stream = {
 		resolve = function(self)
 			print('resolve')
-			self._connected = true
-			next_job(self)
+			self:next_job()
+
+			return true
 		end,
 		timeout = function(self)
 			print('timeout')
-			self._connected = false
+
+			return true
 		end,
 		connect = function(self)
 			print('connect')
-			self._connected = true
-			next_job(self)
+			self:next_job()
+
+			return true
 		end,
 		disconnect = function(self)
 			print('disconnect')
-			self._connected = false
+
+			return true
+		end,
+		error = function(self, err)
+			print('error', err)
+
+			return true
 		end
 	}
 }
 
+local device = osc_responder:new({
+	fullname = nil,
+	version = nil,
+	port = nil,
+
+	_init = function(self)
+		self._root = methods
+		self._jobs = {}
+		self._sensors = {}
+
+		-- create OSC-type url for device
+		self.url = {
+			conf = string.gsub(self.fullname, '([^.]+)._osc._([^.]+).local', function(name, prot)
+				prot = prot .. (self.version == 'inet' and 4 or 6)
+				return string.format('osc.%s://%s.local:%i', prot, name, self.port)
+			end),
+			data = 'osc.udp4://:3333' --TODO
+		}
+
+		-- create OSC responders
+		self.io = {
+			conf = OSC.new(self.url.conf, self),
+			data = OSC.new(self.url.data, self)
+		}
+	end,
+
+	_deinit = function(self)
+		-- close OSC responders
+		if self.io and self.io.conf then self.io.conf:close() end
+		if self.io and self.io.data then self.io.data:close() end
+	end,
+
+	next_job = function(self)
+		for path, job in pairs(self._jobs) do
+			if job.format then
+				if job.value == true then
+					job.value = 1
+				elseif job.value == false then
+					job.value = 0
+				end
+				self.io.conf(1, path, 'i' .. job.format, 13, job.value)
+			else
+				self.io.conf(1, path, 'i', 13)
+			end
+
+			break; -- only handle one job at a time
+		end
+	end,
+
+	close = function(self)
+		self:_deinit()
+	end
+})
+
 local app = class:new({
 	_init = function(self)
+		self.discover = {}
 		self.devices = {}
 
 		self.httpd = httpd:new({
@@ -118,49 +166,34 @@ local app = class:new({
 				end,
 
 				devices = function(httpd, client)
-					httpd:unicast_json(client, {status='success', key='devices', value=self.devices})
+					httpd:unicast_json(client, {status='success', key='devices', value=self.discover})
 				end,
 
 				query = function(httpd, client, data)
-					local err, j = JSON.decode(data.body) -- TODO handle rrr
-					local dev = clients[j.url]
-					if not dev then
-						dev = {
-							_root = methods,
-							_jobs = {},
-							_connected = false
-						}
-						local responder = osc_responder:new(dev)
-						dev._io = OSC.new(j.url, responder)
-						dev._srv = OSC.new('osc.udp4://:3333', responder)
-						clients[j.url] = dev
-					end
+					local dev, j = self:find(httpd, client, data)
+					if not dev then return end
 
 					dev._jobs[j.path .. '!'] = {
 						httpd = httpd,
 						client = client
 					}
-
-					next_job(dev)
+					dev:next_job()
 				end,
 
 				get = function(httpd, client, data)
-					local err, j = JSON.decode(data.body) -- TODO handle rrr
-					local dev = clients[j.url]
+					local dev, j = self:find(httpd, client, data)
+					if not dev then return end
 
 					dev._jobs[j.path] = {
 						httpd = httpd,
 						client = client
 					}
-
-					next_job(dev)
+					dev:next_job()
 				end,
 
 				set = function(httpd, client, data)
-					local err, j = JSON.decode(data.body)
-					local dev = clients[j.url]
-
-					print('set', j.path, j.format, j.value)
+					local dev, j = self:find(httpd, client, data)
+					if not dev then return end
 
 					dev._jobs[j.path] = {
 						httpd = httpd,
@@ -168,44 +201,71 @@ local app = class:new({
 						format = j.format,
 						value = j.value
 					}
-
-					next_job(dev)
+					dev:next_job()
 				end,
 
 				call = function(httpd, client, data)
-					local err, j = JSON.decode(data.body)
-					local dev = clients[j.url]
+					local dev, j = self:find(httpd, client, data)
+					if not dev then return end
 
 					dev._jobs[j.path] = {
 						httpd = httpd,
 						client = client
 					}
-
-					next_job(dev)
+					dev:next_job()
 				end,
 
 				sensors = function(httpd, client, data)
-					local err, j = JSON.decode(data.body)
-					local dev = clients[j.url]
+					local dev, j = self:find(httpd, client, data)
+					if not dev then return end
 
-					if dev then
-						dev._sensors = dev._sensors or {}
-						table.insert(dev._sensors, {
-							httpd = httpd,
-							client = client
-						})
-					else
-						self.httpd:unicast_json(client, {status='success', key='sensors', value={}})
-					end
+					table.insert(dev._sensors, {
+						httpd = httpd,
+						client = client
+					})
 				end
 			} } }
 		})
 
-		self.dns_sd = dns_sd:new({}, function(devices)
-			self.devices = devices
-			self.httpd:broadcast_json({status='success', key='devices', value=self.devices})
+		-- listen to zeroconf updates
+		self.dns_sd = dns_sd:new({}, function(discover)
+			for k, dev in pairs(self.devices) do
+				-- close device
+				dev:close()
+			end
+
+			self.devices = {}
+			for k, v in pairs(discover) do
+				-- add device to device list
+				local dev = device:new({
+					fullname = k,
+					version = v.version,
+					port = v.port
+				})
+				self.devices[k] = dev
+			end
+
+			-- notify connected http clients about changes
+			self.discover = discover
+			self.httpd:broadcast_json({status='success', key='devices', value=self.discover})
 		end)
 	end,
+
+	find = function(self, httpd, client, data)
+		local err, j = JSON.decode(data.body)
+		if err then
+			httpd:unicast_json(client, {status='error', value='JSON decode failed'})
+			return
+		end
+
+		local dev = self.devices[j.url]
+		if not dev then
+			httpd:unicast_json(client, {status='error', value='device non existent'})
+			return
+		end
+
+		return dev, j
+	end
 })
 
 local chimaerad = app:new({})

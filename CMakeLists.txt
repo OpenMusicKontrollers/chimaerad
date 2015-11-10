@@ -40,7 +40,7 @@ include_directories(${ZIP_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${ZIP_LDFLAGS})
 
 # libuv
-pkg_search_module(UV REQUIRED libuv>=1.0.0)
+pkg_search_module(UV REQUIRED libuv>=1.3.0)
 include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 

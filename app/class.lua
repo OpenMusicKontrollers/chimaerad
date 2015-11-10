@@ -19,15 +19,23 @@ local class = {
 	new = function(self, o, ...)
 		o = o or {}
 
-		self.__index = rawget(self, '__index') or self
+		self.__index = self
 
-		self.__gc = function(o)
-			return self._deinit and self._deinit(o)
+		if self._call then
+			self.__call = function(o, ...)
+				return self._call(o, ...)
+			end
+		end
+
+		if self._deinit then
+			self.__gc = function(o)
+				return self._deinit(o)
+			end
 		end
 
 		setmetatable(o, self)
 
-		if(self._init) then
+		if self._init then
 			self._init(o, ...)
 		end
 

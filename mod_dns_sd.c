@@ -121,7 +121,7 @@ _browse_cb(
 	{
 		if(err)
 		{
-			lua_pushnumber(L, err);
+			lua_pushinteger(L, err);
 			lua_pushnil(L);
 		}
 		else
@@ -251,7 +251,7 @@ _resolve_cb(
 	{
 		if(err)
 		{
-			lua_pushnumber(L, err);
+			lua_pushinteger(L, err);
 			lua_pushnil(L);
 		}
 		else
@@ -271,7 +271,7 @@ _resolve_cb(
 				lua_pushlstring(L, target, _strlen_dot(target));
 				lua_setfield(L, -2, "target");
 
-				lua_pushnumber(L, be16toh(port));
+				lua_pushinteger(L, be16toh(port));
 				lua_setfield(L, -2, "port");
 
 				int n = TXTRecordGetCount(len, txt);
@@ -400,7 +400,7 @@ _query_ip_cb(
 	{
 		if(err)
 		{
-			lua_pushnumber(L, err);
+			lua_pushinteger(L, err);
 			lua_pushnil(L);
 		}
 		else
@@ -565,7 +565,7 @@ _query_txt_cb(
 	{
 		if(err)
 		{
-			lua_pushnumber(L, err);
+			lua_pushinteger(L, err);
 			lua_pushnil(L);
 		}
 		else

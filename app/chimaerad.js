@@ -73,7 +73,7 @@ app.controller('mainController', function($scope, $http) {
 });
 
 app.controller('calibrationController', function($scope, $route, $timeout, $http) {
-	var device = $route.current.params.device;
+	var device_name = $route.current.params.device;
 
 	var s = [];
 	for(var i=0; i<160; i++) {
@@ -82,12 +82,11 @@ app.controller('calibrationController', function($scope, $route, $timeout, $http
 	$scope.sensors = s;
 
 	$scope.onTimeout = function() {
-		$http.post('/api/v1/sensors', {url: 'osc.udp4://chimaera.local:4444'})
+		$http.post('/api/v1/sensors', {url: device_name})
 			.success(function(data) {
 				$scope[data.key] = data.value;
-			});
-
-		mytimeout = $timeout($scope.onTimeout, 40);
+				mytimeout = $timeout($scope.onTimeout, 40);
+			})
 	}
 	var mytimeout = $timeout($scope.onTimeout, 40);
 });
@@ -105,55 +104,67 @@ app.directive("sensorDump", function () {
 			scope.context = scope.canvas.getContext('2d');
 
 			scope.$watch('sensors', function(newValue) {
-				var barWidth = scope.canvas.width / newValue.length;
+				var context = scope.context;
+				var width = scope.canvas.width;
+				var height = scope.canvas.height;
+				var barWidth = width / newValue.length;
 				var barWidth2 = barWidth - 2;
-				var m = scope.canvas.height / 2;
-				var thresh = 4096 / scope.canvas.height;
+				var m = height / 2;
+				var s = m / 2048;
+				var thresh0 = 2048 / m;
+				var thresh1 = 2032;
 
 				// fill background
-				scope.context.fillStyle = '#222';
-				scope.context.fillRect(0, 0, scope.canvas.width, scope.canvas.height);
+				context.fillStyle = '#222';
+				context.fillRect(0, 0, width, height);
 
 				// set line parameters
-				scope.context.strokeStyle = '#fff';
-				scope.context.lineWidth = 1;
-				scope.context.setLineDash([]);
+				context.strokeStyle = '#fff';
+				context.lineWidth = 1;
+				context.setLineDash([]);
 
 				// draw solid lines
-				scope.context.strokeRect(0, 0, scope.canvas.width, scope.canvas.height);
-				scope.context.beginPath();
-					scope.context.moveTo(0, m);
-					scope.context.lineTo(scope.canvas.width, m);
-				scope.context.stroke();
-				scope.context.closePath();
+				//context.strokeRect(0, 0, width, height);
+				context.beginPath();
+					context.moveTo(0, m);
+					context.lineTo(width, m);
+				context.stroke();
+				context.closePath();
+			
+				context.beginPath();
+					context.moveTo(0, height);
+					context.lineTo(width, height);
+				context.stroke();
+				context.closePath();
+
+				context.beginPath();
+					context.moveTo(0, 0);
+					context.lineTo(width, 0);
+				context.stroke();
+				context.closePath();
 
 				// draw dashed lines
-				scope.context.setLineDash([1, 4]);
-				scope.context.beginPath();
-					scope.context.moveTo(0, 10);
-					scope.context.lineTo(scope.canvas.width, 10);
-				scope.context.stroke();
-				scope.context.closePath();
+				context.setLineDash([1, 4]);
 
-				scope.context.beginPath();
-					scope.context.moveTo(0, 310);
-					scope.context.lineTo(scope.canvas.width, 310);
-				scope.context.stroke();
-				scope.context.closePath();
+				for(var i=0; i<=160; i+=16) {
+					var x = i*barWidth;
+					context.beginPath();
+						context.moveTo(x, 0);
+						context.lineTo(x, height);
+					context.stroke();
+					context.closePath();
+				}
 
 				// draw sensor bars
 				for(var i=0; i<newValue.length; i++) {
-					if(Math.abs(newValue[i]) < thresh)
+					var val = newValue[i];
+					var vala = Math.abs(val)
+					if(vala < thresh0)
 						continue;
 
-					var rel = newValue[i] / 4096 * scope.canvas.height;
-					if(rel > 0) {
-						scope.context.fillStyle = '#0b0';
-						scope.context.fillRect(barWidth*i + 1, m, barWidth2, rel);
-					} else if(rel < 0) {
-						scope.context.fillStyle = '#b00';
-						scope.context.fillRect(barWidth*i + 1, m+rel, barWidth2, -rel);
-					}
+					var rel = vala * s;
+					context.fillStyle = vala >= thresh1 ? '#bb0' : '#b00';
+					context.fillRect(barWidth*i + 1, val >= 0 ? m : m-rel, barWidth2, rel);
 				}
 			});
 		}
@@ -161,24 +172,20 @@ app.directive("sensorDump", function () {
 });
 
 app.controller('deviceController', function($scope, $http, $route) {
-	var device = $route.current.params.device;
-	var path = $route.current.params.uri;
-	$scope.uri = path;
+	var device_name = $route.current.params.device;
+	$scope.uri = $route.current.params.uri;
 
 	$scope.devices = null;
 	$scope.device = null;
-	$scope.url = null;
 	$scope.items = {};
 	$scope.contents = null;
 
 	var success = function(data) {
 		console.log(data);
 		$scope[data.key] = data.value;
-		$scope.device = $scope.devices[device];
-		$scope.url = $scope.device.fullname.replace(/([^.]+)._osc._([^.]+).local/g,
-			'osc.$2' + ($scope.device.version == 'inet' ? '4' : '6') + '://$1.local:' + $scope.device.port);
+		$scope.device = $scope.devices[device_name];
 
-		$http.post('/api/v1/query', {url: $scope.url, path: $scope.uri})
+		$http.post('/api/v1/query', {url: device_name, path: $scope.uri})
 			.success(function(data) {
 				$scope[data.key] = data.value;
 			}); //TODO .error
@@ -195,7 +202,7 @@ app.controller('deviceController', function($scope, $http, $route) {
 	}
 
 	$scope.query = function(item) {
-		$http.post('/api/v1/query', {url: $scope.url, path: path+item})
+		$http.post('/api/v1/query', {url: device_name, path: $scope.uri + item})
 			.success(function(data) {
 				$scope.items[item] = data.value;
 			}); //TODO .error
@@ -204,7 +211,7 @@ app.controller('deviceController', function($scope, $http, $route) {
 	$scope.get = function(item) {
 		var arg = $scope.items[item].arguments[0];
 
-		$http.post('/api/v1/get', {url: $scope.url, path: path+item})
+		$http.post('/api/v1/get', {url: device_name, path: $scope.uri + item})
 			.success(function(data) {
 				var value = data.value;
 				if(arg.type == 'i' && arg.range && arg.range[0] == 0 && arg.range[1] == 1) {
@@ -218,8 +225,8 @@ app.controller('deviceController', function($scope, $http, $route) {
 		var arg = $scope.items[item].arguments[0];
 
 		$http.post('/api/v1/set', {
-			url: $scope.url,
-			path: path+item,
+			url: device_name,
+			path: $scope.uri + item,
 			format: arg.type,
 			value: arg.value
 		}).success(function(data) {
@@ -227,7 +234,7 @@ app.controller('deviceController', function($scope, $http, $route) {
 	}
 
 	$scope.call = function(item) {
-		$http.post('/api/v1/call', {url: $scope.url, path: path+item})
+		$http.post('/api/v1/call', {url: device_name, path: $scope.uri + item})
 			.success(function(data) {
 			}); //TODO .error
 	}

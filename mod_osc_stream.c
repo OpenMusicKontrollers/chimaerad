@@ -82,10 +82,23 @@ _gc(lua_State *L)
 	if(!mod_osc)
 		return 0;
 
-	osc_stream_free(mod_osc->stream);
-	varchunk_free(mod_osc->from_net);
-	varchunk_free(mod_osc->to_net);
-	mod_osc->L = NULL;
+	if(mod_osc->stream)
+	{
+		osc_stream_free(mod_osc->stream);
+		mod_osc->stream = NULL;
+	}
+
+	if(mod_osc->from_net)
+	{
+		varchunk_free(mod_osc->from_net);
+		mod_osc->from_net = NULL;
+	}
+
+	if(mod_osc->to_net)
+	{
+		varchunk_free(mod_osc->to_net);
+		mod_osc->to_net = NULL;
+	}
 	
 	lua_pushlightuserdata(L, mod_osc);
 	lua_pushnil(L);
@@ -115,6 +128,9 @@ _message(const osc_data_t *buf, size_t len, void *data)
 {
 	mod_osc_t *mod_osc = data;
 	lua_State *L = mod_osc->L;
+
+	if(!L)
+		return;
 
 	const osc_data_t *ptr = buf;
 	const char *path = NULL;
@@ -322,13 +338,12 @@ _new(lua_State *L)
 		goto fail;
 	memset(mod_osc, 0, sizeof(mod_osc_t));
 	mod_osc->L = L;
-
-	if(!(mod_osc->stream = osc_stream_new(app->loop, url, &driver, mod_osc)))
-		goto fail;
 	
 	if(!(mod_osc->from_net = varchunk_new(BUF_SIZE)))
 		goto fail;
 	if(!(mod_osc->to_net = varchunk_new(BUF_SIZE)))
+		goto fail;
+	if(!(mod_osc->stream = osc_stream_new(app->loop, url, &driver, mod_osc)))
 		goto fail;
 
 	luaL_getmetatable(L, "mod_osc_t");

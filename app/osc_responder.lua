@@ -18,8 +18,10 @@
 local class = require('class')
 
 local osc_responder = class:new({
-	__call = function(self, time, path, fmt, ...)
+	_call = function(self, time, path, fmt, ...)
 		local root = self._root
+
+		--print(path, fmt, ...)
 
 		for key in string.gmatch(path, '/([^/]+)') do
 			--TODO implement wildcard
@@ -27,10 +29,6 @@ local osc_responder = class:new({
 		end
 
 		return root and not root(self, time, ...)
-	end,
-
-	_init = function(self)
-		self.__call = getmetatable(self).__call
 	end
 })
 
