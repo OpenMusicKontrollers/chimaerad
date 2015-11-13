@@ -7,7 +7,6 @@
 		<meta charset="UTF-8" />
 		<link rel="icon" type="image/png" href="/img/favicon.png" />
 		<link rel="stylesheet" type="text/css" href="/style.css" />
-		<link rel="stylesheet" type="text/css" href="/angular-chart.css" />
 		<script type="text/javascript" src="/angular.js" charset="utf-8"></script>
 		<script type="text/javascript" src="/angular-route.js" charset="utf-8"></script>
 		<script type="text/javascript" src="/chimaerad.js" charset="utf-8"></script>
@@ -26,7 +25,26 @@
 			</noscript>
 		</div>
 
-		<div ng-view></div>
+		<div ng-controller="mainController" ng-init="keepalive()">
+			<div>
+				<b>Version</b>
+					{{version}},
+				<b>Status</b> 
+					<span ng-if="connected">connected</span>
+					<span ng-if="!connected">disconnected</span>
+			</div>
+
+			<div ng-if="connected">
+				<a href="#/interfaces"><b>Interfaces</b></a>
+
+				<span ng-init="api('/api/v1/devices')">
+					<span ng-repeat="(name, device) in devices">
+						| <a href="#/device/{{name}}//"><b>{{device.name}}</b></a>
+					</span>
+				</span>
+
+				<div ng-view></div>
+		</div>
 
 		<div class="logo"><p>
 			<img src="/img/logo.png" width="70" alt="OMK Logo" />

@@ -92,7 +92,7 @@ endif(ZIP_BIN_NOTFOUND)
 
 set(ZIP_SOURCES
 	index.html
-	main.html
+	interfaces.html
 	device.html
 	calibration.html
 

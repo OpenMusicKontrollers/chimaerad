@@ -1,5 +1,79 @@
-<div ng-controller="calibrationController">
-	<h2>Calibration</h2>
+<div>
+	<h2>/calibration/</h2>
+
+	<p>
+		<i>Calibration of sensor array</i>
+	</p>
+
+	<!--
+	<table>
+		<tr>
+			<td><b>/engines/dump/enabled</b></td>
+			<td><i>Enabled/disable dump</i></td>
+			<td>
+				<input type="checkbox" ng-model="arg.value" ng-change="set('/engines/dump/enabled')" />
+			</td>
+		</tr>
+	</table>
+	-->
 
 	<sensor-dump sensors="sensors"></sensor-dump>
+
+	<div ng-if="state === 0">
+		<p>Start calibration procedure.</p>
+		<input type="button" value="OK" ng-click="call('start', 1)" />
+	</div>
+
+	<div ng-if="state === 1">
+		<p>Determine the quiescent state of each sensor.</p>
+		<p><i>Do not bring any magnetic source near the sensor array for some seconds and procede.</i></p>
+		<input type="button" value="OK" ng-click="call('zero', 2)" />
+	</div>
+
+	<div ng-if="state === 2">
+		<p>Determine the threshold of each sensor.</p>
+		<p><i>Move the magnet at a fixed distance along the sensor array. This distance represents the sensors threshold, e.g. touch events will be triggered only above this threshold. Start left with one polarity, go right, return left, turn the polarity around, go right, return left and procede. This also gathers the first point for the 5-point sensor-distance curve-fit.</i></p>
+		<input type="button" value="OK" ng-click="call('min', 3)" />
+	</div>
+
+	<div ng-if="state === 3">
+		<p>Gather second point for 5-point sensor-distance curve-fit for sensor <b>#{{sensor}}</b>.</p>
+		<p><i>Move both poles of the magnet at a fixed vicinity y1&gt;0 (e.g. 0.25) over the given sensor only. Fill in your vicinity into the box and procede.</i></p>
+		<input type="number" min="0.0" max="1.0" step="0.05" ng-model="value[state]" ng-change="change()" />
+		<input type="button" value="OK" ng-click="call('mid', 4)" />
+	</div>
+
+	<div ng-if="state === 4">
+		<p>Gather third point for 5-point sensor-distance curve-fit for sensor <b>#{{sensor}}</b>.</p>
+		<p><i>Move both poles of the magnet at a fixed vicinity y2&gt;y1 (e.g. 0.5) over the given sensor only. Fill in your vicinity into the box and procede.</i></p>
+		<input type="number" min="0.0" max="1.0" step="0.05" ng-model="value[state]" ng-change="change()" />
+		<input type="button" value="OK" ng-click="call('mid', 5)" />
+	</div>
+
+	<div ng-if="state === 5">
+		<p>Gather fourth point for 5-point sensor-distance curve-fit for sensor <b>#{{sensor}}</b>.</p>
+		<p><i>Move both poles of the magnet at a fixed vicinity y3&gt;y2 (e.g. 0.75) over the given sensor only. Fill in your vicinity into the box and procede.</i></p>
+		<input type="number" min="0.0" max="1.0" step="0.05" ng-model="value[state]" ng-change="change()" />
+		<input type="button" value="OK" ng-click="call('mid', 6)" />
+	</div>
+
+	<div ng-if="state === 6">
+		<p>Gather fithth point for 5-point sensor-distance curve-fit for sensor <b>#{{sensor}}</b>.</p>
+		<p><i>Move both poles of the magnet at a fixed vicinity y4=1 over the given sensor only. This vicinity represents the maximal sensor value and hence the smallest distance (or even none) from the case.</i></p>
+		<input type="button" value="OK" ng-click="call('max', 7)" />
+	</div>
+
+	<div ng-if="state === 7">
+		<p>Determine the sensitivity of each sensor.</p>
+		<p><i>Move the magnet along the sensor array at a fixed vicinity (e.g. 0.75). Start left with one polarity, go right, return left, turn the polarity around, go right, return left and procede.</i></p>
+		<input type="number" min="0.0" max="1.0" step="0.05" ng-model="value[state]" ng-change="change()" />
+		<input type="button" value="OK" ng-click="call('end', 8)" />
+	</div>
+
+	<div ng-if="state === 8">
+		<p>You can now save your calibration data to EEPROM, so the device will load it at future boots.</p>
+		<input type="button" value="OK" ng-click="call('save', 0)" />
+	</div>
+		
+	<input type="button" value="Cancel" ng-click="abort()" />
 </div>

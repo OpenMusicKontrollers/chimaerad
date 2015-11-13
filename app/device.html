@@ -1,88 +1,85 @@
-<div ng-controller="deviceController" ng-init="api('/api/v1/devices')">
-	<div style="float:left; margin:10px;">
-		<h2>{{device.name}}</h2>
-		<!--<h4>{{url}}</h4>-->
+<div style="float:left;">
+	<h2>{{device.name}}</h2>
 
-		<table>
-			<tr ng-repeat="(key, value) in device">
-				<td><b>{{key}}</b></td>
-				<td ng-if="key!='txt'">{{value}}</td>
-				<td ng-if="key=='txt'">
-					<span ng-repeat="(key2, value2) in value">
-						{{key2}} (<i>{{value2}}</i>)<br />
+	<table>
+		<tr ng-repeat="(key, value) in device">
+			<td><b>{{key}}</b></td>
+			<td ng-if="key!='txt'">{{value}}</td>
+			<td ng-if="key=='txt'">
+				<span ng-repeat="(key2, value2) in value">
+					{{key2}} (<i>{{value2}}</i>)<br />
+				</span>
+			</td>
+		</tr>
+	</table>
+</div>
+
+<div ng-init="intro()" style="float:left; margin-left:10px;">
+	<h2>{{contents.path}}</h2>
+
+	<p>
+		<i>{{contents.description}}</i>
+	</p>
+
+	<table>
+		<tr ng-repeat="item in contents.items">
+			<td ng-init="query(item)">
+				<a ng-if="items[item].type == 'node'" href="#/device/{{device.fullname}}/{{contents.path + item}}"><b>{{item}}</b></a>
+				<span ng-if="items[item].type == 'method'"><b>{{item}}</b></span>
+			</td>
+
+			<td>
+				<i>{{items[item].description}}</i>
+			</td>
+
+			<td ng-if="items[item].type == 'method'">
+				<span ng-if="!items[item].arguments.length">
+					<input type="button" value="call" ng-click="call(item)" />
+				</span>
+
+				<span ng-if="items[item].arguments.length" ng-repeat="arg in items[item].arguments" ng-init="get(item)">
+					<!-- boolean -->
+					<span ng-if="arg.type=='i' && arg.range && (arg.range[0]===0 && arg.range[1]===1)">
+						<input type="checkbox"
+							ng-model="arg.value" ng-change="set(item)" />
 					</span>
-				</td>
-			</tr>
-		</table>
-	</div>
 
-	<div style="float:left; margin:10px;">
-		<h2>{{contents.path}}</h2>
-
-		<p>
-			<i>{{contents.description}}</i>
-		</p>
-
-		<table>
-			<tr ng-repeat="item in contents.items">
-				<td ng-init="query(item)">
-					<a ng-if="items[item].type == 'node'" href="#/device/{{device.fullname}}/{{contents.path + item}}"><b>{{item}}</b></a>
-					<span ng-if="items[item].type == 'method'"><b>{{item}}</b></span>
-				</td>
-
-				<td>
-					<i>{{items[item].description}}</i>
-				</td>
-
-				<td ng-if="items[item].type == 'method'">
-					<span ng-if="!items[item].arguments.length">
-						<input type="button" value="call" ng-click="call(item)" />
+					<!-- integer -->
+					<span ng-if="arg.type=='i' && arg.range && !(arg.range[0]===0 && arg.range[1]===1)">
+						<input ng-if="arg.write" type="number"
+							min="{{arg.range[0]}}" max="{{arg.range[1]}}" step="1"
+							ng-model="arg.value" ng-change="set(item)" />
+						<span ng-if="!arg.write">{{arg.value}}</span>
 					</span>
 
-					<span ng-if="items[item].arguments.length" ng-repeat="arg in items[item].arguments" ng-init="get(item)">
-						<!-- boolean -->
-						<span ng-if="arg.type=='i' && arg.range && (arg.range[0]===0 && arg.range[1]===1)">
-							<input type="checkbox"
-								ng-model="arg.value" ng-change="set(item)" />
-						</span>
+					<!-- float -->
+					<span ng-if="arg.type=='f' && arg.range">
+						<input ng-if="arg.write" type="number"
+							min="{{arg.range[0]}}" max="{{arg.range[1]}}" step="0.000001"
+							ng-model="arg.value" ng-change="set(item)" />
+						<span ng-if="!arg.write">{{arg.value}}</span>
+					</span>
 
-						<!-- integer -->
-						<span ng-if="arg.type=='i' && arg.range && !(arg.range[0]===0 && arg.range[1]===1)">
-							<input ng-if="arg.write" type="number"
-								min="{{arg.range[0]}}" max="{{arg.range[1]}}" step="1"
-								ng-model="arg.value" ng-change="set(item)" />
-							<span ng-if="!arg.write">{{arg.value}}</span>
-						</span>
+					<!-- string -->
+					<span ng-if="arg.type=='s' && arg.range">
+						<input ng-if="arg.write" type="text" ng-maxlength="{{arg.range[1]}}"
+							ng-model="arg.value" ng-change="set(item)" />
+						<span ng-if="!arg.write">{{arg.value}}</span>
+					</span>
 
-						<!-- float -->
-						<span ng-if="arg.type=='f' && arg.range">
-							<input ng-if="arg.write" type="number"
-								min="{{arg.range[0]}}" max="{{arg.range[1]}}" step="0.000001"
-								ng-model="arg.value" ng-change="set(item)" />
-							<span ng-if="!arg.write">{{arg.value}}</span>
-						</span>
-
-						<!-- string -->
-						<span ng-if="arg.type=='s' && arg.range">
-							<input ng-if="arg.write" type="text" ng-maxlength="{{arg.range[1]}}"
-								ng-model="arg.value" ng-change="set(item)" />
-							<span ng-if="!arg.write">{{arg.value}}</span>
-						</span>
-
-						<!-- enum -->
-						<span ng-if="arg.values">
-							<span ng-if="arg.write">
-								<span ng-repeat="value in arg.values">
-									<input type="radio" value="{{value}}" ng-value="value" 
-										ng-model="arg.value" ng-change="set(item)" />
-									{{value}}
-								</span>
+					<!-- enum -->
+					<span ng-if="arg.values">
+						<span ng-if="arg.write">
+							<span ng-repeat="value in arg.values">
+								<input type="radio" value="{{value}}" ng-value="value" 
+									ng-model="arg.value" ng-change="set(item)" />
+								{{value}}
 							</span>
-							<span ng-if="!arg.write">{{arg.value}}</span>
 						</span>
+						<span ng-if="!arg.write">{{arg.value}}</span>
 					</span>
-				</td>
-			</tr>
-		</table>
-	</div>
+				</span>
+			</td>
+		</tr>
+	</table>
 </div>
