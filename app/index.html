@@ -36,6 +36,7 @@
 
 			<div ng-if="connected">
 				<a href="#/interfaces"><b>Interfaces</b></a>
+				| <a href="#/ports"><b>Ports</b></a>
 
 				<span ng-init="api('/api/v1/devices')">
 					<span ng-repeat="(name, device) in devices">

@@ -2,7 +2,7 @@
 
 <table ng-init="api('/api/v1/interfaces')">
 	<tr ng-repeat="interface in interfaces">
-		<td ng-if="!interface.internal"><b>{{interface.name}}</b>
+		<td ng-if="!interface.internal"><b>{{interface.name}}</b></td>
 		<td ng-if="!interface.internal">{{interface.address}} ({{interface.version == 'inet' ? 'IPv4' : 'IPv6'}})</td>
 	</tr>
 </table>

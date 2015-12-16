@@ -103,6 +103,7 @@ main(int argc, char **argv)
 	luaopen_zip(&app);
 	luaopen_iface(&app);
 	luaopen_dns_sd(&app);
+	luaopen_rtmidi(&app);
 
 	app.io = zip_open(argv[1], ZIP_CHECKCONS, &err);
 	if(!app.io)

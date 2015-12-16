@@ -1,0 +1,14 @@
+<h2>Ports</h2>
+
+<table ng-init="api('/api/v1/backends')">
+	<tr ng-repeat="backend_name in backends">
+		<td><b>{{backend_name}}</b></td>
+	</tr>
+</table>
+
+<table ng-init="api('/api/v1/ports')">
+	<tr ng-repeat="port_name in ports">
+		<td><b>{{port_name}}</b></td>
+	</tr>
+</table>
+

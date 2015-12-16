@@ -26,6 +26,10 @@ app.config(function($routeProvider, $httpProvider) {
 			templateUrl: 'interfaces.html',
 			controller: 'interfaceController'
 		})
+		.when('/ports', {
+			templateUrl: 'ports.html',
+			controller: 'portController'
+		})
 		.when('/device/:device//calibration/', {
 			templateUrl: 'calibration.html',
 			controller: 'calibrationController'
@@ -42,6 +46,7 @@ app.controller('mainController', function($scope, $http) {
 	$scope.version = '0.1.0';
 	$scope.connected = true;
 	$scope.interfaces = null;
+	$scope.ports = null;
 	$scope.devices = null;
 
 	var success = function(data) {
@@ -74,6 +79,10 @@ app.controller('mainController', function($scope, $http) {
 });
 
 app.controller('interfaceController', function($scope) {
+	//TODO
+});
+
+app.controller('portController', function($scope) {
 	//TODO
 });
 
