@@ -71,7 +71,7 @@ else()
 	set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
 
 	# alsa
-	pkg_search_module(ALSA REQUIRED alsa)
+	pkg_search_module(ALSA OPTIONAL alsa)
 	include_directories(${ALSA_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${ALSA_LDFLAGS})
 

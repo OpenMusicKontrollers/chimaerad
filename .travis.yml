@@ -19,7 +19,7 @@ before_install:
  - iflin sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
  - iflin sudo apt-get update -qq
 install:
- - iflin sudo apt-get install cmake=2.8.12.2-3 libavahi-compat-libdnssd-dev
+ - iflin sudo apt-get install cmake=2.8.12.2-3 libavahi-compat-libdnssd-dev libasound2-dev libjack-dev
  - iflinclang sudo apt-get install -y clang-3.6 libstdc++-5-dev
  - iflingcc sudo apt-get install -y gcc-5 g++-5
  - ifmac brew install lua libzip libuv
