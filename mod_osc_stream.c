@@ -339,9 +339,9 @@ _new(lua_State *L)
 	memset(mod_osc, 0, sizeof(mod_osc_t));
 	mod_osc->L = L;
 	
-	if(!(mod_osc->from_net = varchunk_new(BUF_SIZE)))
+	if(!(mod_osc->from_net = varchunk_new(BUF_SIZE, false) ))
 		goto fail;
-	if(!(mod_osc->to_net = varchunk_new(BUF_SIZE)))
+	if(!(mod_osc->to_net = varchunk_new(BUF_SIZE, false)))
 		goto fail;
 	if(!(mod_osc->stream = osc_stream_new(app->loop, url, &driver, mod_osc)))
 		goto fail;
