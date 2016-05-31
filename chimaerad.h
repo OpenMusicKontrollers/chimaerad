@@ -59,7 +59,6 @@ int luaopen_http(app_t *app);
 int luaopen_zip(app_t *app);
 int luaopen_iface(app_t *app);
 int luaopen_dns_sd(app_t *app);
-int luaopen_rtmidi(app_t *app);
 
 #ifdef __cplusplus
 }

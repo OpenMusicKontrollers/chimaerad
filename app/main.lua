@@ -154,10 +154,6 @@ local app = class:new({
 		self.discover = {}
 		self.devices = {}
 
-		-- MIDI out
-		self.midi = RTMIDI.new('ChimaeraD')
-		print(self.midi:virtual_port_open('MPE'))
-
 		-- HTTPD
 		self.httpd = httpd:new({
 			port = 8080,
@@ -169,14 +165,6 @@ local app = class:new({
 
 				interfaces = function(httpd, client)
 					httpd:unicast_json(client, {status='success', key='interfaces', value=IFACE.list()})
-				end,
-
-				ports = function(httpd, client)
-					httpd:unicast_json(client, {status='success', key='ports', value=self.midi:list()})
-				end,
-
-				backends = function(httpd, client)
-					httpd:unicast_json(client, {status='success', key='backends', value=self.midi:backend()})
 				end,
 
 				devices = function(httpd, client)

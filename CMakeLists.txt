@@ -14,7 +14,6 @@ include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
 include_directories(${PROJECT_SOURCE_DIR}/varchunk)
-include_directories(${PROJECT_SOURCE_DIR}/rtmidi)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
@@ -53,32 +52,12 @@ set(LIBS ${LIBS} ${LUA_LDFLAGS})
 if(WIN32)
 	find_library(DNS_SD dns_sd)
 	set(LIBS ${LIBS} ${DNS_SD})
-
-	# jack
-	pkg_search_module(JACK OPTIONAL jack)
-	include_directories(${JACK_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${JACK_LDFLAGS})
 elseif(APPLE)
 	message(STATUS "using dns_sd")
-
-	# jack
-	pkg_search_module(JACK OPTIONAL jack)
-	include_directories(${JACK_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${JACK_LDFLAGS})
 else()
 	pkg_search_module(DNS_SD REQUIRED avahi-compat-libdns_sd>=0.6)
 	include_directories(${DNS_SD_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
-
-	# alsa
-	pkg_search_module(ALSA OPTIONAL alsa)
-	include_directories(${ALSA_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${ALSA_LDFLAGS})
-
-	# jack
-	pkg_search_module(JACK OPTIONAL jack)
-	include_directories(${JACK_INCLUDE_DIRS})
-	set(LIBS ${LIBS} ${JACK_LDFLAGS})
 endif()
 
 # chimaerad
@@ -99,23 +78,11 @@ add_executable(chimaerad
 # iface
 	mod_iface.c
 # dns_sd
-	mod_dns_sd.c
-# rtmidi
-	rtmidi/RtMidi.cpp
-	rtmidi_c.cpp
-	mod_rtmidi.c)
+	mod_dns_sd.c)
 
 target_link_libraries(chimaerad ${LIBS})
 
 target_compile_definitions(chimaerad PUBLIC -DAPP_DIR=${APP_DIR})
-
-if(${ALSA_FOUND})
-	target_compile_definitions(chimaerad PUBLIC -D__LINUX_ALSA__)
-endif()
-
-if(${JACK_FOUND})
-	target_compile_definitions(chimaerad PUBLIC -D__UNIX_JACK__)
-endif()
 
 install(TARGETS chimaerad DESTINATION bin)
 
@@ -129,7 +96,6 @@ endif(ZIP_BIN_NOTFOUND)
 set(ZIP_SOURCES
 	index.html
 	interfaces.html
-	ports.html
 	device.html
 	calibration.html
 
