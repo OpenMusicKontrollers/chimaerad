@@ -100,18 +100,22 @@ elseif(APPLE)
 	target_compile_definitions(lua PUBLIC -DLUA_USE_MACOSX)
 endif()
 
+add_library(cjson OBJECT
+	cJSON/cJSON.c)
+
+add_library(http_parser OBJECT
+	http-parser/http_parser.c)
+
 # chimaerad
 add_executable(chimaerad
 # OSC
 	mod_osc_common.c
 	mod_osc_stream.c
 # cJSON
-	cJSON/cJSON.c
 	mod_json.c
 # chimaerad
 	chimaerad.c
 # http
-	http-parser/http_parser.c
 	mod_http.c
 # zip
 	mod_zip.c
@@ -119,7 +123,11 @@ add_executable(chimaerad
 	mod_iface.c
 # dns_sd
 	mod_dns_sd.c
-# lua
+# http-parser
+	$<TARGET_OBJECTS:http_parser>
+# cJSON
+	$<TARGET_OBJECTS:cjson>
+# Lua
 	$<TARGET_OBJECTS:lua>)
 
 target_link_libraries(chimaerad ${LIBS})
