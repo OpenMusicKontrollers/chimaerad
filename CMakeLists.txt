@@ -14,6 +14,7 @@ include_directories(${PROJECT_SOURCE_DIR}/libosc_stream)
 include_directories(${PROJECT_SOURCE_DIR}/cJSON)
 include_directories(${PROJECT_SOURCE_DIR}/inlist)
 include_directories(${PROJECT_SOURCE_DIR}/varchunk)
+include_directories(${PROJECT_SOURCE_DIR}/lua-5.3.1)
 
 set(APP_DIR share/chimaerad)
 set(LIBS -lm)
@@ -44,11 +45,6 @@ pkg_search_module(UV REQUIRED libuv>=1.3.0)
 include_directories(${UV_INCLUDE_DIRS})
 set(LIBS ${LIBS} ${UV_LDFLAGS})
 
-# lua
-pkg_search_module(LUA REQUIRED lua>=5.2 lua5.3 lua5.2)
-include_directories(${LUA_INCLUDE_DIRS})
-set(LIBS ${LIBS} ${LUA_LDFLAGS})
-
 if(WIN32)
 	find_library(DNS_SD dns_sd)
 	set(LIBS ${LIBS} ${DNS_SD})
@@ -58,6 +54,50 @@ else()
 	pkg_search_module(DNS_SD REQUIRED avahi-compat-libdns_sd>=0.6)
 	include_directories(${DNS_SD_INCLUDE_DIRS})
 	set(LIBS ${LIBS} ${DNS_SD_LDFLAGS})
+endif()
+
+add_library(lua OBJECT
+	lua-5.3.1/lapi.c
+	lua-5.3.1/lcode.c
+	lua-5.3.1/lctype.c
+	lua-5.3.1/ldebug.c
+	lua-5.3.1/ldo.c
+	lua-5.3.1/ldump.c
+	lua-5.3.1/lfunc.c
+	lua-5.3.1/lgc.c
+	lua-5.3.1/llex.c
+	lua-5.3.1/lmem.c
+	lua-5.3.1/lobject.c
+	lua-5.3.1/lopcodes.c
+	lua-5.3.1/lparser.c
+	lua-5.3.1/lstate.c
+	lua-5.3.1/lstring.c
+	lua-5.3.1/ltable.c
+	lua-5.3.1/ltm.c
+	lua-5.3.1/lundump.c
+	lua-5.3.1/lvm.c
+	lua-5.3.1/lzio.c
+
+	lua-5.3.1/lbitlib.c
+	lua-5.3.1/ldblib.c
+	lua-5.3.1/liolib.c
+	lua-5.3.1/loslib.c
+	lua-5.3.1/loadlib.c
+	lua-5.3.1/linit.c
+	lua-5.3.1/lbaselib.c
+	lua-5.3.1/lauxlib.c
+	lua-5.3.1/lcorolib.c
+	lua-5.3.1/lmathlib.c
+	lua-5.3.1/lstrlib.c
+	lua-5.3.1/ltablib.c
+	lua-5.3.1/lutf8lib.c)
+set_target_properties(lua PROPERTIES POSITION_INDEPENDENT_CODE true) # -fPIC
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+	target_compile_definitions(lua PUBLIC -DLUA_USE_LINUX)
+elseif(WIN32)
+	target_compile_definitions(lua PUBLIC)
+elseif(APPLE)
+	target_compile_definitions(lua PUBLIC -DLUA_USE_MACOSX)
 endif()
 
 # chimaerad
@@ -78,12 +118,19 @@ add_executable(chimaerad
 # iface
 	mod_iface.c
 # dns_sd
-	mod_dns_sd.c)
+	mod_dns_sd.c
+# lua
+	$<TARGET_OBJECTS:lua>)
 
 target_link_libraries(chimaerad ${LIBS})
-
 target_compile_definitions(chimaerad PUBLIC -DAPP_DIR=${APP_DIR})
-
+if(${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+	target_compile_definitions(chimaerad PUBLIC -DLUA_USE_LINUX)
+elseif(WIN32)
+	target_compile_definitions(chimaerad lua PUBLIC)
+elseif(APPLE)
+	target_compile_definitions(chimaerad PUBLIC -DLUA_USE_MACOSX)
+endif()
 install(TARGETS chimaerad DESTINATION bin)
 
 find_program(ZIP_BIN NAMES zip)
