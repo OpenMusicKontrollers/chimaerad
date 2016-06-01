@@ -17,7 +17,7 @@ include_directories(${PROJECT_SOURCE_DIR}/varchunk)
 include_directories(${PROJECT_SOURCE_DIR}/lua-5.3.1)
 
 set(APP_DIR share/chimaerad)
-set(LIBS -lm)
+set(LIBS ${LIBS} m)
 
 set(CMAKE_C_FLAGS "-std=gnu11 -Wextra -Wno-unused-parameter -ffast-math -fvisibility=hidden ${CMAKE_C_FLAGS}")
 set(CMAKE_C_FLAGS "-Wshadow -Wimplicit-function-declaration -Wmissing-prototypes -Wstrict-prototypes ${CMAKE_C_FLAGS}")
@@ -29,21 +29,34 @@ if(WIN32)
 	set(BUILD_SHARED_LIBRARIES OFF)
 	set(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 	set(LIBS ${LIBS} "-lwinmm -lws2_32 -lpsapi -liphlpapi -lavrt -Wl,-Bstatic -lstdc++ -lwinpthread -luserenv")
-elseif(APPLE)
-	if(CMAKE_SIZEOF_VOID_P MATCHES "8")
-		set(CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000")
-	endif()
+endif()
+
+# zlib
+pkg_search_module(Z OPTIONAL zlib>=1.2.0) # optional for APPLE
+include_directories(${Z_INCLUDE_DIRS})
+if(DEFINED STATIC_Z)
+	set(LIBS ${STATIC_Z} ${LIBS})
+else()
+	set(LIBS ${LIBS} ${Z_LDFLAGS})
 endif()
 
 # libzip
-pkg_search_module(ZIP REQUIRED libzip>=0.10)
+pkg_search_module(ZIP REQUIRED libzip>=1.1.0)
 include_directories(${ZIP_INCLUDE_DIRS})
-set(LIBS ${LIBS} ${ZIP_LDFLAGS})
+if(DEFINED STATIC_ZIP)
+	set(LIBS ${STATIC_ZIP} ${LIBS})
+else()
+	set(LIBS ${LIBS} ${ZIP_LDFLAGS})
+endif()
 
 # libuv
 pkg_search_module(UV REQUIRED libuv>=1.3.0)
 include_directories(${UV_INCLUDE_DIRS})
-set(LIBS ${LIBS} ${UV_LDFLAGS})
+if(DEFINED STATIC_UV)
+	set(LIBS ${STATIC_UV} ${LIBS})
+else()
+	set(LIBS ${LIBS} ${UV_LDFLAGS})
+endif()
 
 if(WIN32)
 	find_library(DNS_SD dns_sd)

@@ -18,6 +18,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
 
+set(STATIC_Z "/opt/${TOOLCHAIN}/lib/libz.a")
+set(STATIC_ZIP "/opt/${TOOLCHAIN}/lib/libzip.a")
 set(STATIC_UV "/opt/${TOOLCHAIN}/lib/libuv.a")
 set(LIBS ${LIBS} "-static-libgcc -lws2_32 -lpsapi -liphlpapi -Wl,-Bstatic -lwinpthread -luserenv")
 
