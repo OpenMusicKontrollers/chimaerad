@@ -23,12 +23,15 @@ before_script:
 .build_template: &build_definition
   <<: *common_definition
   script:
+    - mkdir ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}
     - mkdir build
     - pushd build
-    - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX="${CI_PROJECT_DIR}/${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}" -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} ..
+    - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} ..
     - cmake .. # needed for darwin
     - make
     - make install
+    - cp /usr/local/bin/chimaerad ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/.
+    - cp /usr/local/share/chimaerad/app.zip ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/.
 
 .universal_linux_template: &universal_linux_definition
   image: ventosus/universal-linux-gnu
@@ -65,12 +68,12 @@ x86_64-linux-gnu:
 universal-apple-darwin:
   <<: *universal_apple_definition
 
-#pack:
-#  <<: *variables_definition
-#  stage: deploy
-#  script:
-#    - echo 'packing up...'
-#  artifacts:
-#    name: "${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}"
-#    paths:
-#      - "${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}"
+pack:
+  <<: *variables_definition
+  stage: deploy
+  script:
+    - echo 'packing up...'
+  artifacts:
+    name: "${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}"
+    paths:
+      - "${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}"
