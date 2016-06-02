@@ -32,9 +32,14 @@
 				<b>Status</b> 
 					<span ng-if="connected">connected</span>
 					<span ng-if="!connected">disconnected</span>
+				<br />
+				Copyright &#169; 2016 Hanspeter Portner |
+				released by <a href="http://open-music-kontrollers.ch">Open Music Kontrollers</a> |
+				under <a href="http://www.perlfoundation.org/artistic_license_2_0">Artistic License 2.0</a>
 			</div>
 
 			<div ng-if="connected">
+				<br />
 				<a href="#/interfaces"><b>Interfaces</b></a>
 
 				<span ng-init="api('/api/v1/devices')">
@@ -48,12 +53,6 @@
 
 		<div class="logo"><p>
 			<img src="/img/logo.png" width="70" alt="OMK Logo" />
-		</div>
-
-		<div class="brand"><p>
-			Copyright &#169; 2015 Hanspeter Portner |
-			released by <a href="http://open-music-kontrollers.ch">Open Music Kontrollers</a> |
-			under <a href="http://www.perlfoundation.org/artistic_license_2_0">Artistic License 2.0</a>
 		</div>
 
 	</body>

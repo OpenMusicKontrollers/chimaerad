@@ -200,3 +200,5 @@ add_custom_command(
 	DEPENDS ${ZIP_DEPENDS})
 add_custom_target(CONTAINER ALL DEPENDS ${PROJECT_BINARY_DIR}/app.zip)
 install(FILES ${PROJECT_BINARY_DIR}/app.zip DESTINATION ${APP_DIR})
+
+install(PROGRAMS ${PROJECT_SOURCE_DIR}/chimaerad.app DESTINATION bin)

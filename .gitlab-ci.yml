@@ -3,9 +3,6 @@ stages:
   - test
   - deploy
 
-before_script:
-  - apt-get install -y -q zip libavahi-compat-libdnssd-dev
-
 .variables_template: &variables_definition
   variables:
     BASE_NAME: "chimaerad"
@@ -22,16 +19,19 @@ before_script:
 
 .build_template: &build_definition
   <<: *common_definition
+  before_script:
+    - apt-get install -y -q zip libavahi-compat-libdnssd-dev
   script:
-    - mkdir ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}
+    - mkdir -p ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/${CI_BUILD_NAME}
     - mkdir build
     - pushd build
     - cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${TOOLCHAIN_FILE} ..
     - cmake .. # needed for darwin
     - make
     - make install
-    - cp /usr/local/bin/chimaerad ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/.
-    - cp /usr/local/share/chimaerad/app.zip ${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/.
+    - cp /usr/local/bin/chimaerad ../${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/${CI_BUILD_NAME}/.
+    - cp /usr/local/bin/chimaerad.app ../${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/${CI_BUILD_NAME}/.
+    - cp /usr/local/share/chimaerad/app.zip ../${BASE_NAME}-${CI_BUILD_REF_NAME}-${CI_BUILD_REF}/${CI_BUILD_NAME}/.
 
 .universal_linux_template: &universal_linux_definition
   image: ventosus/universal-linux-gnu
@@ -55,13 +55,13 @@ x86_64-linux-gnu:
 
 #i686-linux-gnu:
 #  <<: *universal_linux_definition
-#
+
 #arm-linux-gnueabihf:
 #  <<: *arm_linux_definition
-#
+
 #x86_64-w64-mingw32:
 #  <<: *universal_w64_definition
-#
+
 #i686-w64-mingw32:
 #  <<: *universal_w64_definition
 

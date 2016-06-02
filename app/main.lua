@@ -128,7 +128,7 @@ local device = osc_responder:new({
 
 	next_job = function(self)
 		for path, job in pairs(self._jobs) do
-			print('job', path, job.format, job.value)
+			--print('job', path, job.format, job.value)
 			if job.format then
 				if job.value == true then
 					job.value = 1
