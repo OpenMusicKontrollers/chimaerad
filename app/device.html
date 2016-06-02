@@ -63,7 +63,7 @@
 					<!-- string -->
 					<span ng-if="arg.type=='s' && arg.range">
 						<input ng-if="arg.write" type="text" ng-maxlength="{{arg.range[1]}}"
-							ng-model="arg.value" ng-change="set(item)" />
+							ng-model="arg.value" ng-change="set(item)" ng-model-options="{ updateOn: 'blur' }" />
 						<span ng-if="!arg.write">{{arg.value}}</span>
 					</span>
 
