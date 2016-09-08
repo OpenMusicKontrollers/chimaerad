@@ -4,7 +4,7 @@
 
 ### Build status
 
-[![Build Status](https://travis-ci.org/OpenMusicKontrollers/chimaerad.svg?branch=master)](https://travis-ci.org/OpenMusicKontrollers/chimaerad)
+[![build status](https://gitlab.com/OpenMusicKontrollers/chimaerad/badges/master/build.svg)](https://gitlab.com/OpenMusicKontrollers/chimaerad/commits/master)
 
 ### About
 
